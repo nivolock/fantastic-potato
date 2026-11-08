@@ -1,0 +1,4439 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#070A12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>نيفولوك - Nivolock | مجتمع الدردشة الصوتية والتواصل الاجتماعي</title>
+
+  <!-- Google Fonts: Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Real-time P2P Voice Engine (PeerJS) & Server Signaling Cluster (MQTT over WSS) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #070A12;
+      --bg-secondary: #0F1626;
+      --bg-card: rgba(20, 29, 49, 0.82);
+      --bg-glass: rgba(15, 22, 38, 0.92);
+      --text-primary: #F8FAFC;
+      --text-secondary: #94A3B8;
+      --accent-primary: #6366F1;
+      --accent-secondary: #8B5CF6;
+      --accent-glow: rgba(99, 102, 241, 0.45);
+      --success: #10B981;
+      --danger: #EF4444;
+      --warning: #F59E0B;
+      --admin-gold: #FBBF24;
+      --border-color: rgba(255, 255, 255, 0.09);
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* OLED True Black Power Saver Mode */
+    body.oled-mode {
+      --bg-primary: #000000;
+      --bg-secondary: #050505;
+      --bg-card: #080808;
+      --bg-glass: #030303;
+      --border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Cairo', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    input, textarea {
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      -webkit-touch-callout: default !important;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+      position: fixed;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.14), transparent 65%), var(--bg-primary);
+      position: relative;
+      border-left: 1px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+    }
+
+    body.oled-mode .app-shell {
+      background: #000000;
+    }
+
+    /* Top Header */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-glass);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 30;
+      flex-shrink: 0;
+    }
+
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.2rem;
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .brand-logo.admin-badge {
+      background: linear-gradient(135deg, #F59E0B, #D97706);
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
+    }
+
+    .brand-title h1 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.3px;
+    }
+
+    .server-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+      transition: var(--transition);
+    }
+
+    .status-dot.connected {
+      background-color: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: var(--transition);
+      font-size: 1.1rem;
+      position: relative;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.93);
+    }
+
+    .icon-btn[aria-pressed="true"] {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: var(--accent-primary);
+      color: #fff;
+    }
+
+    .badge-count {
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      background: var(--danger);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 800;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      border: 2px solid var(--bg-primary);
+    }
+
+    /* Main Content Area */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 16px;
+      padding-bottom: 92px;
+      scroll-behavior: smooth;
+    }
+
+    .tab-section {
+      display: none;
+      animation: fadeIn 0.22s ease-out;
+    }
+
+    .tab-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards & Containers */
+    .nv-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .nv-card.admin-card {
+      border-color: rgba(251, 191, 36, 0.35);
+      background: linear-gradient(180deg, rgba(251, 191, 36, 0.07), var(--bg-card));
+    }
+
+    .nv-card.announcement-card {
+      border: 1.5px solid rgba(251, 191, 36, 0.45);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(99, 102, 241, 0.08), var(--bg-card));
+      box-shadow: 0 8px 26px rgba(245, 158, 11, 0.15);
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text-primary);
+    }
+
+    /* Sub-Navigation Bar (For Posts vs Admin Announcements) */
+    .sub-tabs-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      background: var(--bg-secondary);
+      padding: 6px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      margin-bottom: 16px;
+    }
+
+    .sub-tab-btn {
+      padding: 11px 10px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      font-weight: 800;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      position: relative;
+    }
+
+    .sub-tab-btn.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent-primary);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(99, 102, 241, 0.25);
+    }
+
+    .sub-tab-btn.admin-ann-tab.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.2));
+      border-color: var(--admin-gold);
+      color: var(--admin-gold);
+      box-shadow: 0 2px 14px rgba(245, 158, 11, 0.3);
+    }
+
+    .ann-pill-badge {
+      background: var(--danger);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 900;
+      padding: 1px 6px;
+      border-radius: 999px;
+      display: none;
+    }
+
+    /* Gender Filter Pills */
+    .filter-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .gender-setup-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .filter-btn {
+      padding: 10px 8px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+      font-weight: 700;
+      font-size: 0.86rem;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .filter-btn[aria-pressed="true"] {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(139, 92, 246, 0.28));
+      border-color: var(--accent-primary);
+      color: #fff;
+      box-shadow: 0 0 14px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Voice Radar & Visualizer */
+    .voice-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 14px;
+      text-align: center;
+      position: relative;
+    }
+
+    .visualizer-orb-wrap {
+      position: relative;
+      width: 176px;
+      height: 176px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 12px 0 22px;
+    }
+
+    .orb-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid rgba(99, 102, 241, 0.3);
+      transition: transform 0.1s ease-out, border-color 0.2s;
+      pointer-events: none;
+    }
+
+    .orb-ring.ring-2 {
+      inset: -14px;
+      border-color: rgba(139, 92, 246, 0.18);
+    }
+
+    .searching .orb-ring {
+      animation: radarPulse 1.8s infinite ease-out;
+    }
+
+    .searching .orb-ring.ring-2 {
+      animation: radarPulse 1.8s infinite ease-out 0.6s;
+    }
+
+    @keyframes radarPulse {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      100% { transform: scale(1.38); opacity: 0; }
+    }
+
+    .orb-core {
+      width: 136px;
+      height: 136px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 10px 35px var(--accent-glow);
+      position: relative;
+      z-index: 2;
+      transition: var(--transition);
+    }
+
+    .orb-core.in-call {
+      background: linear-gradient(135deg, #059669, #10B981);
+      box-shadow: 0 10px 35px rgba(16, 185, 129, 0.45);
+    }
+
+    .gel-bar {
+      width: 8px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: 999px;
+      transition: height 0.07s ease-out;
+    }
+
+    .call-status-title {
+      font-size: 1.18rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .call-status-sub {
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+      min-height: 22px;
+    }
+
+    .call-timer {
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: var(--success);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    /* Primary & Action Buttons */
+    .btn-primary {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: var(--transition);
+      box-shadow: 0 6px 20px var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #EF4444, #DC2626);
+      box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10B981, #059669);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #F59E0B, #D97706);
+      color: #000;
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .active-call-controls {
+      display: none !important;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    .active-call-controls.show-call-controls {
+      display: grid !important;
+    }
+
+    /* User & Friend Lists */
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .user-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      gap: 10px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .avatar-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3B82F6, #6366F1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1rem;
+      color: #fff;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .avatar-circle.female {
+      background: linear-gradient(135deg, #EC4899, #8B5CF6);
+    }
+
+    .user-meta {
+      min-width: 0;
+    }
+
+    .user-name {
+      font-weight: 800;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-sub {
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .user-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .mini-btn {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .mini-btn.primary {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: var(--accent-primary);
+    }
+
+    .mini-btn.success {
+      background: rgba(16, 185, 129, 0.22);
+      border-color: var(--success);
+      color: #34D399;
+    }
+
+    .mini-btn.danger {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #FCA5A5;
+    }
+
+    .mini-btn.warning {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: rgba(245, 158, 11, 0.5);
+      color: #FCD34D;
+    }
+
+    /* Inputs & Forms */
+    .nv-input, .nv-textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      outline: none;
+      transition: var(--transition);
+    }
+
+    .nv-input:focus, .nv-textarea:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .nv-textarea {
+      resize: vertical;
+      min-height: 110px;
+      line-height: 1.65;
+    }
+
+    /* Posts Feed */
+    .post-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .post-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    .post-content {
+      font-size: 0.96rem;
+      line-height: 1.7;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .post-footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 10px;
+    }
+
+    .comments-box {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .comment-item {
+      font-size: 0.84rem;
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Private Chat Modal / Drawer */
+    .chat-box-container {
+      display: none;
+      flex-direction: column;
+      height: 430px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
+    .chat-box-container.active {
+      display: flex;
+    }
+
+    .chat-header {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .msg-bubble {
+      max-width: 82%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      position: relative;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .msg-bubble.mine {
+      align-self: flex-start;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-bubble.theirs {
+      align-self: flex-end;
+      background: rgba(255, 255, 255, 0.09);
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.7rem;
+      opacity: 0.8;
+      margin-top: 4px;
+    }
+
+    .chat-input-bar {
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 600px;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+      z-index: 40;
+    }
+
+    .nav-tab {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 8px 2px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+    }
+
+    .nav-tab .nav-icon {
+      font-size: 1.2rem;
+    }
+
+    .nav-tab[aria-selected="true"] {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.18);
+    }
+
+    .nav-tab.admin-nav-tab {
+      display: none;
+      color: var(--admin-gold);
+    }
+
+    .nav-tab.admin-nav-tab[aria-selected="true"] {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fff;
+    }
+
+    /* Overlays & Modals */
+    .fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-primary);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      overflow-y: auto;
+    }
+
+    .auth-box {
+      width: 100%;
+      max-width: 430px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 22px 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    .incoming-call-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 95;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .incoming-call-modal.active {
+      display: flex;
+    }
+
+    .toast-banner {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-130%);
+      background: #1E293B;
+      border: 1px solid var(--accent-primary);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      z-index: 120;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      max-width: 92%;
+      text-align: center;
+    }
+
+    .toast-banner.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 24px 12px;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
+
+  <!-- TalkBack Screen Reader Live Announcer -->
+  <div id="srAnnouncer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Visual Toast Notification -->
+  <div id="toastBanner" class="toast-banner" role="status" aria-live="polite"></div>
+
+  <!-- Hidden Audio Elements for WebRTC Streams -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+  <audio id="adminMonitorAudioA" autoplay playsinline></audio>
+  <audio id="adminMonitorAudioB" autoplay playsinline></audio>
+
+  <!-- Authentication & Account Setup Overlay -->
+  <div id="authOverlay" class="fullscreen-overlay" role="dialog" aria-labelledby="authTitle" style="display:none;">
+    <div class="auth-box">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div class="brand-logo" style="width:54px; height:54px; font-size:1.5rem; margin:0 auto 10px;">N</div>
+        <h2 id="authTitle" style="font-size:1.3rem; font-weight:900;">مرحباً بك في نيفولوك (Nivolock)</h2>
+        <p style="font-size:0.82rem; color:var(--text-secondary); margin-top:4px;">
+          سجّل دخولك إلى حسابك الشخصي أو أنشئ حساباً جديداً محفوظاً بأمان تام
+        </p>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <label for="authUsernameInput" style="display:block; font-size:0.84rem; font-weight:700; margin-bottom:5px;">اسم الحساب:</label>
+        <input id="authUsernameInput" type="text" class="nv-input" placeholder="أدخل اسم الحساب..." autocomplete="username" />
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label for="authPasswordInput" style="display:block; font-size:0.84rem; font-weight:700; margin-bottom:5px;">كلمة المرور الخاصة بالحساب:</label>
+        <input id="authPasswordInput" type="password" class="nv-input" placeholder="أدخل كلمة المرور..." autocomplete="current-password" />
+      </div>
+
+      <!-- Account Personal Gender (Locked permanently after initial registration) -->
+      <div id="genderSetupContainer" style="margin-bottom:12px;">
+        <label style="display:block; font-size:0.84rem; font-weight:700; margin-bottom:5px;">جنس الحساب الشخصي (يثبت نهائياً بعد التسجيل):</label>
+        <div class="gender-setup-group" role="group" aria-label="اختيار جنس الحساب الشخصي">
+          <button type="button" id="selectGenderMale" class="filter-btn" aria-pressed="false" onclick="selectInitialGender('male')">
+            👨 شاب
+          </button>
+          <button type="button" id="selectGenderFemale" class="filter-btn" aria-pressed="false" onclick="selectInitialGender('female')">
+            👩 فتاة
+          </button>
+        </div>
+        <p id="genderLockNotice" style="font-size:0.74rem; color:var(--warning); margin-top:4px;">
+          ⚠️ جنس الحساب الشخصي يُختار عند التسجيل الأول فقط ولا يمكن تغييره لاحقاً.
+        </p>
+      </div>
+
+      <!-- Target Gender Preference for Interaction (Can be changed anytime) -->
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:0.84rem; font-weight:700; margin-bottom:5px;">🎯 تحديد الجنس المفضل للتواصل والتحدث معه:</label>
+        <div class="filter-group" role="group" aria-label="اختيار الجنس المفضل للتواصل معه">
+          <button type="button" id="authFilterAllBtn" class="filter-btn" aria-pressed="true" onclick="setTargetGenderFilter('all')">
+            🌍 الكل
+          </button>
+          <button type="button" id="authFilterMaleBtn" class="filter-btn" aria-pressed="false" onclick="setTargetGenderFilter('male')">
+            👨 شاب
+          </button>
+          <button type="button" id="authFilterFemaleBtn" class="filter-btn" aria-pressed="false" onclick="setTargetGenderFilter('female')">
+            👩 فتاة
+          </button>
+        </div>
+      </div>
+
+      <button type="button" id="authSubmitBtn" class="btn-primary" onclick="handleUserAuthentication()">
+        🚀 تسجيل الدخول والمتابعة
+      </button>
+      <p id="authStatusText" style="text-align:center; font-size:0.8rem; color:var(--text-secondary); margin-top:10px; min-height:20px;"></p>
+    </div>
+  </div>
+
+  <!-- Incoming Voice Call Modal -->
+  <div id="incomingCallModal" class="incoming-call-modal" role="alertdialog" aria-labelledby="incomingCallerName">
+    <div class="auth-box" style="text-align:center;">
+      <div class="avatar-circle" style="width:72px; height:72px; font-size:1.8rem; margin:0 auto 14px;">📞</div>
+      <h3 id="incomingCallerName" style="font-size:1.25rem; font-weight:900; margin-bottom:4px;">مكالمة صوتية واردة</h3>
+      <p id="incomingCallType" style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:20px;">يرغب بالتحدث معك الآن</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <button type="button" class="btn-primary btn-success" onclick="acceptIncomingCall()" aria-label="قبول المكالمة الصوتية">
+          ✅ قبول
+        </button>
+        <button type="button" class="btn-primary btn-danger" onclick="rejectIncomingCall()" aria-label="رفض المكالمة الصوتية">
+          ❌ رفض
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Instant Incoming Friend Request Popup Modal -->
+  <div id="incomingFriendReqModal" class="incoming-call-modal" role="alertdialog" aria-labelledby="incomingFriendReqTitle">
+    <div class="auth-box" style="text-align:center; max-width:400px;">
+      <div id="incomingFriendAvatar" class="avatar-circle" style="width:66px; height:66px; font-size:1.6rem; margin:0 auto 12px;">🤝</div>
+      <h3 id="incomingFriendReqTitle" style="font-size:1.18rem; font-weight:900; margin-bottom:6px;">📩 طلب صداقة جديد</h3>
+      <p id="incomingFriendReqSub" style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:18px;">
+        يرغب بإضافتك إلى قائمة الأصدقاء للتواصل والمراسلة
+      </p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+        <button type="button" class="btn-primary btn-success" onclick="acceptFriendReqFromModal()">
+          ✅ قبول الصداقة
+        </button>
+        <button type="button" class="btn-primary btn-danger" onclick="rejectFriendReqFromModal()">
+          ❌ رفض الطلب
+        </button>
+      </div>
+      <button type="button" class="btn-secondary" style="width:100%;" onclick="closeFriendReqModal()">
+        ⏳ الإغلاق والرد لاحقاً
+      </button>
+    </div>
+  </div>
+
+  <!-- Official Admin Announcement Instant Popup Modal -->
+  <div id="adminAnnouncementModal" class="incoming-call-modal" role="dialog" aria-labelledby="adminAnnModalTitle">
+    <div class="auth-box announcement-card" style="max-width:460px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span style="background:rgba(251,191,36,0.2); color:var(--admin-gold); border:1px solid var(--admin-gold); padding:4px 10px; border-radius:999px; font-size:0.78rem; font-weight:900;">
+          📢 إعلان رسمي من إدارة نيفولوك
+        </span>
+        <span id="adminAnnModalTime" style="font-size:0.75rem; color:var(--text-secondary);"></span>
+      </div>
+      <h3 id="adminAnnModalTitle" style="font-size:1.15rem; font-weight:900; color:var(--admin-gold); margin-bottom:10px;">
+        تحديث وإعلان إداري جديد
+      </h3>
+      <div id="adminAnnModalBody" style="font-size:0.95rem; line-height:1.7; max-height:280px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; background:rgba(0,0,0,0.3); padding:12px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:16px;"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <button type="button" class="btn-primary btn-warning" onclick="openAnnouncementsTabFromModal()">
+          📜 عرض قسم الإعلانات
+        </button>
+        <button type="button" class="btn-secondary" onclick="closeAdminAnnouncementModal()">
+          إغلاق
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unlimited Post / Announcement Edit Modal -->
+  <div id="editContentModal" class="incoming-call-modal" role="dialog" aria-labelledby="editModalTitle">
+    <div class="auth-box" style="max-width:480px;">
+      <h3 id="editModalTitle" style="font-size:1.1rem; font-weight:900; margin-bottom:12px;">✏️ تعديل المحتوى</h3>
+      <textarea id="editModalTextarea" class="nv-textarea" style="min-height:160px;" placeholder="اكتب النص المعدل هنا بلا حدود..."></textarea>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;">
+        <button type="button" class="btn-primary btn-success" onclick="saveEditedContent()">
+          💾 حفظ التعديلات
+        </button>
+        <button type="button" class="btn-secondary" onclick="closeEditContentModal()">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Application Shell -->
+  <div class="app-shell" id="mainApp" aria-hidden="false">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-box">
+        <div id="headerBrandLogo" class="brand-logo" aria-hidden="true">N</div>
+        <div class="brand-title">
+          <h1 id="headerAppTitle">نيفولوك | Nivolock</h1>
+          <div class="server-status" id="serverStatusContainer">
+            <span id="serverDot" class="status-dot"></span>
+            <span id="serverStatusLabel">جاري الاتصال بالخادم...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" id="oledToggleBtn" class="icon-btn" aria-pressed="false" aria-label="الوضع الليلي العميق لتوفير الطاقة" onclick="toggleOledMode()">
+          🌙
+        </button>
+        <button type="button" id="soundToggleBtn" class="icon-btn" aria-pressed="true" aria-label="تفعيل أو كتم المؤثرات الصوتية" onclick="toggleSoundEffects()">
+          🔊
+        </button>
+      </div>
+    </header>
+
+    <!-- Scrollable Sections Container -->
+    <main class="main-content">
+
+      <!-- SECTION 1: Random Voice Chat (الدردشة الصوتية العشوائية) -->
+      <section id="tab-voice" class="tab-section active" role="tabpanel" aria-labelledby="nav-voice">
+        <div class="nv-card">
+          <div class="section-title">
+            <span>🎯 تفضيلات البحث والتواصل</span>
+            <span id="myGenderBadge" style="font-size:0.78rem; color:var(--accent-primary); font-weight:700;"></span>
+          </div>
+
+          <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:10px;">
+            حدد الجنس المفضل الذي ترغب بالتحدث والتفاعل معه في المكالمات العشوائية:
+          </p>
+          <div class="filter-group" role="group" aria-label="تحديد الجنس المفضل للتواصل معه">
+            <button type="button" id="filterAllBtn" class="filter-btn" aria-pressed="true" onclick="setTargetGenderFilter('all')">
+              🌍 الكل
+            </button>
+            <button type="button" id="filterMaleBtn" class="filter-btn" aria-pressed="false" onclick="setTargetGenderFilter('male')">
+              👨 شاب
+            </button>
+            <button type="button" id="filterFemaleBtn" class="filter-btn" aria-pressed="false" onclick="setTargetGenderFilter('female')">
+              👩 فتاة
+            </button>
+          </div>
+        </div>
+
+        <div class="nv-card voice-stage">
+          <div id="visualizerBox" class="visualizer-orb-wrap" aria-hidden="true">
+            <div class="orb-ring"></div>
+            <div class="orb-ring ring-2"></div>
+            <div id="orbCore" class="orb-core">
+              <div class="gel-bar" id="gelBar1"></div>
+              <div class="gel-bar" id="gelBar2"></div>
+              <div class="gel-bar" id="gelBar3"></div>
+              <div class="gel-bar" id="gelBar4"></div>
+              <div class="gel-bar" id="gelBar5"></div>
+            </div>
+          </div>
+
+          <div id="callTimerBadge" class="call-timer" aria-live="off">00:00</div>
+          <h2 id="voiceStatusTitle" class="call-status-title">جاهز للدردشة الصوتية المباشرة</h2>
+          <p id="voiceStatusSub" class="call-status-sub">اضغط على زر البحث بالأسفل للاتصال بمستخدم عشوائي عبر الخادم</p>
+
+          <button type="button" id="mainMatchBtn" class="btn-primary" onclick="toggleRandomVoiceSearch()">
+            🎙️ بدء البحث عن محادثة عشوائية
+          </button>
+
+          <div id="activeCallControls" class="active-call-controls">
+            <button type="button" id="muteMicBtn" class="btn-secondary" aria-pressed="false" onclick="toggleMicrophoneMute()">
+              🎤 كتم الصوت
+            </button>
+            <button type="button" id="addPartnerFriendBtn" class="btn-secondary" onclick="sendFriendRequestToCurrentPartner()">
+              ➕ طلب صداقة
+            </button>
+            <button type="button" id="endCallBtn" class="btn-primary btn-danger" onclick="hangUpActiveCall(true)">
+              📴 إنهاء
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: Online Users & Friend Requests (المتواجدون الآن) -->
+      <section id="tab-online" class="tab-section" role="tabpanel" aria-labelledby="nav-online">
+        <div class="nv-card">
+          <div class="section-title">
+            <span>🟢 المتصلون بالخادم الآن</span>
+            <span id="onlineCounterBadge" style="font-size:0.82rem; color:var(--success);">1 متصل</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:12px;">
+            للحفاظ على الخصوصية، لا يمكن الاتصال المباشر أو المراسلة الخاصة إلا بعد إرسال طلب صداقة وقبوله.
+          </p>
+          <div id="onlineUsersList" class="user-list" role="list">
+            <div class="empty-state">لا يوجد مستخدمون آخرون متصلون في هذه اللحظة.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 3: Friends & Private Messaging (الأصدقاء والمحادثات الخاصة) -->
+      <section id="tab-friends" class="tab-section" role="tabpanel" aria-labelledby="nav-friends">
+        <!-- Incoming Friend Requests -->
+        <div class="nv-card" id="friendRequestsCard" style="display:none; border-color:rgba(16, 185, 129, 0.4);">
+          <div class="section-title" style="color:var(--success);">
+            <span>📩 طلبات الصداقة الواردة</span>
+            <span id="friendReqsCountLabel" style="font-size:0.8rem;"></span>
+          </div>
+          <div id="friendRequestsList" class="user-list"></div>
+        </div>
+
+        <!-- Accepted Friends List -->
+        <div class="nv-card">
+          <div class="section-title">
+            <span>👥 قائمة الأصدقاء</span>
+            <span id="friendsCountLabel" style="font-size:0.8rem; color:var(--text-secondary);">0 صديق</span>
+          </div>
+          <div id="friendsListContainer" class="user-list">
+            <div class="empty-state">لم تقم بإضافة أصدقاء بعد. أرسل طلبات صداقة من قسم المتواجدين أو أثناء المكالمات العشوائية.</div>
+          </div>
+        </div>
+
+        <!-- Private Chat Room (Text + Voice Notes + Direct Call) -->
+        <div id="privateChatBox" class="chat-box-container" role="region" aria-label="نافذة المحادثة الخاصة">
+          <div class="chat-header">
+            <div>
+              <strong id="chatPartnerName" style="font-size:0.95rem;">محادثة خاصة</strong>
+              <div id="chatPartnerStatus" style="font-size:0.74rem; color:var(--text-secondary);">صديق</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="mini-btn success" onclick="callActiveChatFriend()" aria-label="اتصال صوتي مباشر بالصديق">
+                📞 اتصال
+              </button>
+              <button type="button" class="mini-btn" onclick="closePrivateChat()" aria-label="إغلاق المحادثة">
+                ✖️ إغلاق
+              </button>
+            </div>
+          </div>
+
+          <div id="privateChatMessages" class="chat-messages" aria-live="polite"></div>
+
+          <div class="chat-input-bar">
+            <input id="privateChatInput" type="text" class="nv-input" placeholder="اكتب رسالة خاصة لصديقك..." style="padding:10px 12px;" onkeydown="if(event.key==='Enter') sendPrivateTextMessage()" />
+            <button type="button" id="recordVoiceNoteBtn" class="icon-btn" aria-pressed="false" aria-label="تسجيل وإرسال رسالة صوتية" onclick="toggleVoiceNoteRecording()">
+              🎙️
+            </button>
+            <button type="button" class="icon-btn" style="background:var(--accent-primary);" aria-label="إرسال الرسالة النصية" onclick="sendPrivateTextMessage()">
+              ➤
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4: Public Posts Feed & Official Admin Announcements (المنشورات وإعلانات الإدارة) -->
+      <section id="tab-feed" class="tab-section" role="tabpanel" aria-labelledby="nav-feed">
+
+        <!-- Sub-Tabs Navigation inside Posts Section -->
+        <div class="sub-tabs-bar" role="tablist" aria-label="أقسام المنشورات وإعلانات الإدارة">
+          <button type="button" id="subTabBtnPublic" class="sub-tab-btn active" role="tab" aria-selected="true" onclick="switchFeedSubTab('public')">
+            <span>📝 المنشورات العامة</span>
+          </button>
+          <button type="button" id="subTabBtnAnnouncements" class="sub-tab-btn admin-ann-tab" role="tab" aria-selected="false" onclick="switchFeedSubTab('announcements')">
+            <span>📢 إعلانات الإدارة</span>
+            <span id="annUnreadBadge" class="ann-pill-badge">0</span>
+          </button>
+        </div>
+
+        <!-- SUB-VIEW A: Public Posts -->
+        <div id="feedSubViewPublic">
+          <div class="nv-card">
+            <div class="section-title">
+              <span>✍️ نشر منشور نصي عام</span>
+            </div>
+            <textarea id="postInput" class="nv-textarea" placeholder="شارك أفكارك مع مجتمع نيفولوك (مساحة كتابة غير محدودة)..."></textarea>
+            <button type="button" class="btn-primary" style="margin-top:10px;" onclick="publishPublicPost()">
+              📢 نشر في المجتمع العام
+            </button>
+          </div>
+
+          <div class="nv-card">
+            <div class="section-title">
+              <span>🌐 أحدث المنشورات العامة</span>
+              <button type="button" class="mini-btn" onclick="requestFullPostsSyncFromServer()" aria-label="تحديث ومزامنة المنشورات">
+                🔄 تحديث
+              </button>
+            </div>
+            <div id="publicPostsContainer">
+              <div class="empty-state">لا توجد منشورات عامة حالياً. كن أول من ينشر!</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-VIEW B: Official Admin Announcements (Visible to ALL users) -->
+        <div id="feedSubViewAnnouncements" style="display:none;">
+          <!-- Admin Publisher Card inside Announcements Tab (Visible only when logged in as Master Admin) -->
+          <div id="adminPublisherInFeedCard" class="nv-card admin-card" style="display:none;">
+            <div class="section-title" style="color:var(--admin-gold);">
+              <span>👑 نشر إعلان إداري رسمي جديد</span>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:10px;">
+              سيظهر هذا الإعلان لجميع المستخدمين فوراً مع إرسال إشعار فوري (Notification) لمن هم خارج التطبيق أو عند فتحه.
+            </p>
+            <textarea id="feedAdminAnnInput" class="nv-textarea" placeholder="اكتب نص الإعلان الإداري أو التحديث الرسمي هنا (مساحة غير محدودة)..."></textarea>
+            <button type="button" class="btn-primary btn-warning" style="margin-top:10px;" onclick="publishAdminAnnouncementFromFeed()">
+              📢 نشر الإعلان الإداري وإرسال الإشعار للجميع
+            </button>
+          </div>
+
+          <!-- Official Announcements List for All Users -->
+          <div class="nv-card announcement-card">
+            <div class="section-title" style="color:var(--admin-gold);">
+              <span>📢 البيان والإعلانات الرسمية للإدارة</span>
+              <span id="announcementsCountBadge" style="font-size:0.8rem; color:var(--text-secondary);">0 إعلان</span>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:12px;">
+              التحديثات والقرارات الرسمية الصادرة عن الإدارة العامة لمنصة نيفولوك.
+            </p>
+            <div id="officialAnnouncementsContainer">
+              <div class="empty-state">لا توجد إعلانات إدارية منشورة حتى الآن.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 5: My Profile & Account Settings (الحساب الشخصي والإعدادات) -->
+      <section id="tab-profile" class="tab-section" role="tabpanel" aria-labelledby="nav-profile">
+        <div class="nv-card">
+          <div class="section-title">
+            <span>👤 الحساب الشخصي</span>
+          </div>
+          <div class="setting-row">
+            <span style="color:var(--text-secondary);">اسم الحساب:</span>
+            <strong id="profileUsernameLabel">-</strong>
+          </div>
+          <div class="setting-row">
+            <span style="color:var(--text-secondary);">المعرف الرقمي للحساب:</span>
+            <strong id="profileUidLabel" style="font-size:0.78rem; color:var(--text-secondary);">-</strong>
+          </div>
+          <div class="setting-row">
+            <span style="color:var(--text-secondary);">جنس الحساب الشخصي:</span>
+            <strong id="profileGenderLabel" style="color:var(--accent-primary);">-</strong>
+          </div>
+          <div class="setting-row">
+            <span style="color:var(--text-secondary);">مستوى الصلاحية:</span>
+            <strong id="profileRoleLabel" style="color:var(--success);">عضو معتمد</strong>
+          </div>
+          <div class="setting-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+            <span style="color:var(--text-secondary); font-size:0.86rem;">🎯 الجنس المفضل للتواصل والتحدث معه في البحث:</span>
+            <div class="filter-group" role="group" aria-label="تحديد الجنس المفضل للتواصل معه">
+              <button type="button" id="profileFilterAllBtn" class="filter-btn" aria-pressed="true" onclick="setTargetGenderFilter('all')">
+                🌍 الكل
+              </button>
+              <button type="button" id="profileFilterMaleBtn" class="filter-btn" aria-pressed="false" onclick="setTargetGenderFilter('male')">
+                👨 شاب
+              </button>
+              <button type="button" id="profileFilterFemaleBtn" class="filter-btn" aria-pressed="false" onclick="setTargetGenderFilter('female')">
+                👩 فتاة
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="nv-card">
+          <div class="section-title">
+            <span>⚙️ إعدادات الصوت والطاقة والإشعارات</span>
+          </div>
+          <div class="setting-row">
+            <span>المؤثرات الصوتية التفاعلية</span>
+            <button type="button" id="settingSoundBtn" class="mini-btn primary" aria-pressed="true" onclick="toggleSoundEffects()">مفعل</button>
+          </div>
+          <div class="setting-row">
+            <span>نغمة الرنين والاهتزاز للمكالمات والإشعارات</span>
+            <button type="button" id="settingRingtoneBtn" class="mini-btn primary" aria-pressed="true" onclick="toggleRingtoneSetting()">مفعل</button>
+          </div>
+          <div class="setting-row">
+            <span>الوضع الليلي العميق (OLED) لتوفير البطارية</span>
+            <button type="button" id="settingOledBtn" class="mini-btn" aria-pressed="false" onclick="toggleOledMode()">متوقف</button>
+          </div>
+        </div>
+
+        <div class="nv-card">
+          <div class="section-title">
+            <span>🗂️ منشوراتي الخاصة</span>
+          </div>
+          <div id="myOwnPostsList">
+            <div class="empty-state">لم تقم بنشر أي منشورات بعد.</div>
+          </div>
+        </div>
+
+        <div class="nv-card">
+          <div class="section-title">
+            <span>📜 سجل المحادثات الصوتية</span>
+            <button type="button" class="mini-btn danger" onclick="clearVoiceCallHistory()" aria-label="مسح سجل المحادثات الصوتية">
+              🗑️ مسح السجل
+            </button>
+          </div>
+          <div id="voiceHistoryList" class="user-list">
+            <div class="empty-state">سجل المكالمات فارغ حالياً.</div>
+          </div>
+        </div>
+
+        <div class="nv-card" style="border-color:rgba(239, 68, 68, 0.35);">
+          <div class="section-title" style="color:#FCA5A5;">
+            <span>🔐 إدارة الجلسة والحساب الشخصي</span>
+          </div>
+          <button type="button" class="btn-secondary" style="width:100%; margin-bottom:12px; padding:12px;" onclick="logoutCurrentSession()">
+            🚪 تسجيل الخروج من الجلسة الحالية
+          </button>
+          <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:12px;">
+            في حال رغبتك بإغلاق حسابك الشخصي نهائياً، سيتم مسح كافة بياناتك ومنشوراتك وقائمة أصدقائك بشكل كامل.
+          </p>
+          <button type="button" class="btn-primary btn-danger" onclick="permanentlyDeleteMyAccount()">
+            ⚠️ إغلاق وحذف الحساب الشخصي نهائياً
+          </button>
+        </div>
+      </section>
+
+      <!-- SECTION 6: SECRET MASTER ADMIN COMMAND CENTER (لوحة تحكم الإدارة العليا) -->
+      <section id="tab-admin" class="tab-section" role="tabpanel" aria-labelledby="nav-admin">
+        <div class="nv-card admin-card">
+          <div class="section-title" style="color:var(--admin-gold);">
+            <span>👑 غرفة العمليات والتحكم الشامل (Master Admin)</span>
+            <span style="font-size:0.75rem; background:rgba(251,191,36,0.2); padding:3px 8px; border-radius:8px;">صلاحيات مطلقة</span>
+          </div>
+          <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:12px;">
+            مراقبة الغرف الصوتية النشطة والاستماع المباشر، نشر الإعلانات الإدارية الفورية، التحكم الكامل بجميع المنشورات، والحظر الشامل.
+          </p>
+
+          <div style="margin-top:10px;">
+            <label for="adminBroadcastInput" style="font-size:0.82rem; font-weight:700; display:block; margin-bottom:6px;">📢 نشر إعلان إداري رسمي شامل (يصل لجميع المستخدمين مع إشعار فوري):</label>
+            <textarea id="adminBroadcastInput" class="nv-textarea" placeholder="اكتب نص الإعلان الإداري أو التحديث هنا (مساحة غير محدودة)..."></textarea>
+            <button type="button" class="btn-primary btn-warning" style="margin-top:8px;" onclick="sendAdminSystemBroadcast()">
+              📢 إرسال الإعلان وتعميمه على كافة المستخدمين
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Call Rooms Monitoring & Silent Audio Bridge -->
+        <div class="nv-card admin-card">
+          <div class="section-title" style="color:var(--admin-gold);">
+            <span>🎧 الغرف الصوتية النشطة الآن (مراقبة واستماع مباشر)</span>
+            <span id="adminActiveRoomsCount" style="font-size:0.8rem;">0 غرفة</span>
+          </div>
+          <div id="adminActiveRoomsList" class="user-list">
+            <div class="empty-state">لا توجد مكالمات صوتية جارية على الخادم في هذه اللحظة.</div>
+          </div>
+        </div>
+
+        <!-- Complete Admin Posts Control Panel -->
+        <div class="nv-card admin-card">
+          <div class="section-title" style="color:var(--admin-gold);">
+            <span>📝 الرقابة والتحكم الشامل بجميع منشورات المستخدمين</span>
+            <span id="adminTotalPostsCount" style="font-size:0.8rem;">0 منشور</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:10px;">
+            وصول كامل ومباشر لجميع المنشورات المسجلة في النظام مع صلاحية التعديل أو الحذف الفوري.
+          </p>
+          <div id="adminAllPostsList" class="user-list">
+            <div class="empty-state">لا توجد منشورات مسجلة حالياً.</div>
+          </div>
+        </div>
+
+        <!-- Global User Moderation & Ban Control -->
+        <div class="nv-card admin-card">
+          <div class="section-title" style="color:var(--admin-gold);">
+            <span>🛡️ إدارة المستخدمين المتصلين والحظر الشامل</span>
+          </div>
+          <div id="adminOnlineControlList" class="user-list">
+            <div class="empty-state">لا يوجد مستخدمون آخرون متصلون حالياً.</div>
+          </div>
+        </div>
+
+        <!-- Ban List Registry -->
+        <div class="nv-card admin-card">
+          <div class="section-title" style="color:var(--admin-gold);">
+            <span>🚫 قائمة الحسابات المحظورة من الخادم</span>
+          </div>
+          <div id="adminBannedUsersList" class="user-list">
+            <div class="empty-state">لا توجد حسابات محظورة حالياً.</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Tab Navigation -->
+    <nav class="bottom-nav" role="tablist" aria-label="أقسام تطبيق نيفولوك">
+      <button type="button" id="nav-voice" class="nav-tab" role="tab" aria-selected="true" aria-controls="tab-voice" onclick="switchTab('tab-voice', this)">
+        <span class="nav-icon" aria-hidden="true">🎙️</span>
+        <span>الصوت العشوائي</span>
+      </button>
+      <button type="button" id="nav-online" class="nav-tab" role="tab" aria-selected="false" aria-controls="tab-online" onclick="switchTab('tab-online', this)">
+        <span class="nav-icon" aria-hidden="true">🟢</span>
+        <span>المتواجدون</span>
+        <span id="onlineNavBadge" class="badge-count" style="display:none;">0</span>
+      </button>
+      <button type="button" id="nav-friends" class="nav-tab" role="tab" aria-selected="false" aria-controls="tab-friends" onclick="switchTab('tab-friends', this)">
+        <span class="nav-icon" aria-hidden="true">💬</span>
+        <span>الأصدقاء</span>
+        <span id="friendsNavBadge" class="badge-count" style="display:none;">0</span>
+      </button>
+      <button type="button" id="nav-feed" class="nav-tab" role="tab" aria-selected="false" aria-controls="tab-feed" onclick="switchTab('tab-feed', this)">
+        <span class="nav-icon" aria-hidden="true">📝</span>
+        <span>المنشورات</span>
+        <span id="feedNavBadge" class="badge-count" style="display:none;">0</span>
+      </button>
+      <button type="button" id="nav-profile" class="nav-tab" role="tab" aria-selected="false" aria-controls="tab-profile" onclick="switchTab('tab-profile', this)">
+        <span class="nav-icon" aria-hidden="true">👤</span>
+        <span>حسابي</span>
+      </button>
+      <button type="button" id="nav-admin" class="nav-tab admin-nav-tab" role="tab" aria-selected="false" aria-controls="tab-admin" onclick="switchTab('tab-admin', this)">
+        <span class="nav-icon" aria-hidden="true">👑</span>
+        <span>الإدارة</span>
+      </button>
+    </nav>
+  </div>
+
+  <script>
+    /********************************************************************
+     * NIVOLOCK (نيفولوك) - ENTERPRISE EDITION (v4 Preserved Infrastructure)
+     * Fixed Friend Request Notifications + Fixed Posts & Admin Publishing
+     * + Target Gender Preference Logic + Permanent Session Stability
+     ********************************************************************/
+
+    // Safe JSON Parser Helper
+    function safeParseJSON(rawStr, fallbackVal) {
+      if (!rawStr) return fallbackVal;
+      try {
+        const parsed = JSON.parse(rawStr);
+        return parsed !== null && parsed !== undefined ? parsed : fallbackVal;
+      } catch (e) {
+        return fallbackVal;
+      }
+    }
+
+    // 1. PERSISTENT DUAL-LAYER STORAGE ENGINE (IndexedDB + localStorage with Timeout Guard)
+    const DB_NAME = 'NivolockEnterpriseDB';
+    const DB_STORE = 'kv_store';
+    let idbInstance = null;
+
+    function initEnterpriseStorage() {
+      return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+        // Strict 450ms guard so WebView IndexedDB never blocks startup
+        setTimeout(finish, 450);
+
+        try {
+          if (!window.indexedDB) return finish();
+          const req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(DB_STORE)) {
+              db.createObjectStore(DB_STORE);
+            }
+          };
+          req.onsuccess = (e) => {
+            idbInstance = e.target.result;
+            try {
+              const tx = idbInstance.transaction(DB_STORE, 'readonly');
+              const store = tx.objectStore(DB_STORE);
+              const keysReq = store.getAllKeys();
+              keysReq.onsuccess = () => {
+                const keys = keysReq.result || [];
+                let pending = keys.length;
+                if (pending === 0) return finish();
+                keys.forEach(k => {
+                  const valReq = store.get(k);
+                  valReq.onsuccess = () => {
+                    if (valReq.result !== undefined && localStorage.getItem(k) === null) {
+                      try { localStorage.setItem(k, valReq.result); } catch (err) {}
+                    }
+                    pending--;
+                    if (pending <= 0) finish();
+                  };
+                  valReq.onerror = () => {
+                    pending--;
+                    if (pending <= 0) finish();
+                  };
+                });
+              };
+              keysReq.onerror = () => finish();
+            } catch (txErr) {
+              finish();
+            }
+          };
+          req.onerror = () => finish();
+        } catch (err) {
+          finish();
+        }
+      });
+    }
+
+    function savePersistentData(key, valueStr) {
+      try {
+        localStorage.setItem(key, valueStr);
+      } catch (e) {}
+      try {
+        if (idbInstance) {
+          const tx = idbInstance.transaction(DB_STORE, 'readwrite');
+          tx.objectStore(DB_STORE).put(valueStr, key);
+        }
+      } catch (e) {}
+    }
+
+    function removePersistentData(key) {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {}
+      try {
+        if (idbInstance) {
+          const tx = idbInstance.transaction(DB_STORE, 'readwrite');
+          tx.objectStore(DB_STORE).delete(key);
+        }
+      } catch (e) {}
+    }
+
+    // 2. MATHEMATICAL ZERO-PLAINTEXT ADMIN VERIFICATION ENGINE
+    const _NV_CIPHER_U = [50, 8, 11, 7, 19, 16, 164, 248, 251, 255, 207, 210];
+    const _NV_CIPHER_P = [148, 147, 174, 161, 168, 189, 180, 183, 74, 65];
+
+    function normalizeDigitsAndSpaces(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')
+        .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+        .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+    }
+
+    function verifyMasterAdminCipher(rawUser, rawPass) {
+      if (!rawUser || !rawPass) return false;
+      const normU = normalizeDigitsAndSpaces(rawUser).trim().replace(/\s+/g, ' ').toLowerCase();
+      const normP = normalizeDigitsAndSpaces(rawPass).trim();
+      if (normU.length !== _NV_CIPHER_U.length || normP.length !== _NV_CIPHER_P.length) return false;
+      let diff = 0;
+      for (let i = 0; i < _NV_CIPHER_U.length; i++) {
+        diff |= ((normU.charCodeAt(i) ^ (0x5A + i * 7)) ^ _NV_CIPHER_U[i]);
+      }
+      for (let j = 0; j < _NV_CIPHER_P.length; j++) {
+        diff |= ((normP.charCodeAt(j) ^ (0xA5 - j * 5)) ^ _NV_CIPHER_P[j]);
+      }
+      return diff === 0;
+    }
+
+    function computeAccountHash(str) {
+      let h1 = 0xdeadbeef ^ str.length;
+      let h2 = 0x41c6ce57 ^ str.length;
+      for (let i = 0, ch; i < str.length; i++) {
+        ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+    }
+
+    // 3. APPLICATION STATE & USER CONFIGURATION (v4 Schema Intact)
+    let myUid = localStorage.getItem('nivolock_uid') || '';
+    let myUsername = localStorage.getItem('nivolock_username') || '';
+    let myPassword = localStorage.getItem('nivolock_password') || '';
+    let myGender = localStorage.getItem('nivolock_gender_lock') || '';
+    let targetGenderFilter = localStorage.getItem('nivolock_target_filter') || 'all';
+    let isMasterAdmin = verifyMasterAdminCipher(myUsername, myPassword);
+    let currentFeedSubTab = 'public';
+
+    // App Settings & Collections
+    let appSettings = safeParseJSON(localStorage.getItem('nivolock_settings'), { sound: true, ringtone: true, oled: false });
+    let friendsMap = safeParseJSON(localStorage.getItem('nivolock_friends'), {});
+    let friendRequestsMap = safeParseJSON(localStorage.getItem('nivolock_friend_reqs'), {});
+    let sentFriendRequestsMap = safeParseJSON(localStorage.getItem('nivolock_sent_friend_reqs'), {});
+    let privateChats = safeParseJSON(localStorage.getItem('nivolock_chats'), {});
+    let publicPosts = safeParseJSON(localStorage.getItem('nivolock_posts'), []);
+    let officialAnnouncements = safeParseJSON(localStorage.getItem('nivolock_announcements'), []);
+    let seenAnnouncementIds = safeParseJSON(localStorage.getItem('nivolock_seen_announcements'), []);
+    let voiceHistory = safeParseJSON(localStorage.getItem('nivolock_voice_history'), []);
+    let bannedAccountsMap = safeParseJSON(localStorage.getItem('nivolock_banlist'), {});
+
+    if (!Array.isArray(publicPosts)) publicPosts = [];
+    if (!Array.isArray(officialAnnouncements)) officialAnnouncements = [];
+    if (!Array.isArray(seenAnnouncementIds)) seenAnnouncementIds = [];
+    if (!Array.isArray(voiceHistory)) voiceHistory = [];
+
+    // Modal state
+    let currentEditTarget = null;
+    let activeModalFriendReqUid = null;
+
+    // Runtime Networking State (Preserved v4 Topic Prefix & Brokers)
+    let mqttClient = null;
+    let currentClusterIndex = 0;
+    const SERVER_CLUSTERS = [
+      'wss://broker.emqx.io:8084/mqtt',
+      'wss://broker.hivemq.com:8884/mqtt',
+      'wss://test.mosquitto.org:8081/mqtt'
+    ];
+    const TOPIC_PREFIX = 'nivolock/v4';
+    let isServerReady = false;
+
+    let peerInstance = null;
+    let myPeerId = '';
+    let localMicStream = null;
+    let activeMediaCall = null;
+    let incomingMediaCall = null;
+    let incomingCallerMeta = null;
+
+    let isSearchingMatch = false;
+    let searchRadarTimer = null;
+    let currentCallPartner = null;
+    let activeCallRoomId = null;
+    let callSeconds = 0;
+    let callTimerInterval = null;
+    let isMicMuted = false;
+
+    // Online Presence & Active Rooms Registry
+    let onlinePeers = {};
+    let activeCallRooms = {};
+    let adminMonitorCalls = [];
+
+    // Active Private Chat Partner
+    let activeChatFriendUid = null;
+    let mediaRecorder = null;
+    let recordedAudioChunks = [];
+    let isRecordingVoiceNote = false;
+
+    // 4. WEB AUDIO API SYNTHESIZER (100% Programmatic Sound Effects & Ringtones)
+    let audioCtx = null;
+    let ringtoneInterval = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      return audioCtx;
+    }
+
+    function playSynthTone(freq, durationMs, type = 'sine', volume = 0.14) {
+      if (!appSettings.sound) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + durationMs / 1000);
+      } catch (e) {}
+    }
+
+    function playSoundEffect(effectName) {
+      if (!appSettings.sound) return;
+      switch (effectName) {
+        case 'radar':
+          playSynthTone(520, 160, 'sine', 0.1);
+          setTimeout(() => playSynthTone(780, 220, 'sine', 0.08), 120);
+          break;
+        case 'connected':
+          playSynthTone(587.33, 140, 'triangle', 0.18);
+          setTimeout(() => playSynthTone(880, 260, 'triangle', 0.2), 140);
+          break;
+        case 'ended':
+          playSynthTone(440, 160, 'sawtooth', 0.12);
+          setTimeout(() => playSynthTone(293.66, 260, 'sawtooth', 0.12), 150);
+          break;
+        case 'notification':
+          playSynthTone(659.25, 130, 'sine', 0.18);
+          setTimeout(() => playSynthTone(987.77, 240, 'sine', 0.18), 130);
+          if (navigator.vibrate) navigator.vibrate([180, 90, 180]);
+          break;
+        case 'announcement':
+          playSynthTone(523.25, 140, 'triangle', 0.22);
+          setTimeout(() => playSynthTone(659.25, 140, 'triangle', 0.22), 140);
+          setTimeout(() => playSynthTone(783.99, 180, 'triangle', 0.24), 280);
+          setTimeout(() => playSynthTone(1046.50, 320, 'triangle', 0.26), 450);
+          if (navigator.vibrate) navigator.vibrate([220, 100, 220]);
+          break;
+        case 'delete':
+          playSynthTone(320, 150, 'sine', 0.14);
+          break;
+        case 'click':
+          playSynthTone(700, 55, 'sine', 0.07);
+          break;
+      }
+    }
+
+    function startIncomingRingtone() {
+      stopIncomingRingtone();
+      if (!appSettings.ringtone) return;
+      const triggerRing = () => {
+        playSynthTone(740, 220, 'sine', 0.22);
+        setTimeout(() => playSynthTone(880, 260, 'sine', 0.22), 250);
+        if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+      };
+      triggerRing();
+      ringtoneInterval = setInterval(triggerRing, 1600);
+    }
+
+    function stopIncomingRingtone() {
+      if (ringtoneInterval) {
+        clearInterval(ringtoneInterval);
+        ringtoneInterval = null;
+      }
+      if (navigator.vibrate) navigator.vibrate(0);
+    }
+
+    // 5. ACCESSIBILITY (TalkBack) & VISUAL TOASTS & NATIVE NOTIFICATIONS
+    function announceToScreenReader(text) {
+      const el = document.getElementById('srAnnouncer');
+      if (el) {
+        el.textContent = '';
+        setTimeout(() => { el.textContent = text; }, 40);
+      }
+    }
+
+    let toastTimeout = null;
+    function showNotificationToast(message, speak = true) {
+      const banner = document.getElementById('toastBanner');
+      if (banner) {
+        banner.textContent = message;
+        banner.classList.add('show');
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => banner.classList.remove('show'), 3800);
+      }
+      if (speak) announceToScreenReader(message);
+    }
+
+    function triggerSystemNotification(title, bodyText) {
+      try {
+        if ('Notification' in window && typeof Notification === 'function') {
+          if (Notification.permission === 'granted') {
+            new Notification(title, {
+              body: bodyText,
+              dir: 'rtl',
+              lang: 'ar'
+            });
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(perm => {
+              if (perm === 'granted') {
+                new Notification(title, { body: bodyText, dir: 'rtl', lang: 'ar' });
+              }
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 6. INITIALIZATION & PERMANENT AUTO-LOGIN ENGINE
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Reset call UI immediately so no phantom call appears
+      resetVoiceCallUIState();
+      applySavedSettingsUI();
+      setTargetGenderFilter(targetGenderFilter, true);
+
+      // Connect to server cluster immediately without waiting for IndexedDB
+      connectToServerCluster();
+
+      // Sync IndexedDB with 450ms timeout guard
+      await initEnterpriseStorage();
+
+      // Refresh state if IndexedDB restored any missing keys
+      myUid = localStorage.getItem('nivolock_uid') || myUid;
+      myUsername = localStorage.getItem('nivolock_username') || myUsername;
+      myPassword = localStorage.getItem('nivolock_password') || myPassword;
+      myGender = localStorage.getItem('nivolock_gender_lock') || myGender;
+      targetGenderFilter = localStorage.getItem('nivolock_target_filter') || targetGenderFilter;
+      setTargetGenderFilter(targetGenderFilter, true);
+
+      // Pre-fill auth inputs
+      if (myUsername) document.getElementById('authUsernameInput').value = myUsername;
+      if (myPassword) document.getElementById('authPasswordInput').value = myPassword;
+
+      // Permanent Gender Lock Check on Auth Form
+      const savedGenderLock = localStorage.getItem('nivolock_gender_lock');
+      if (savedGenderLock === 'male' || savedGenderLock === 'female') {
+        myGender = savedGenderLock;
+        selectInitialGender(savedGenderLock, true);
+        document.getElementById('selectGenderMale').disabled = true;
+        document.getElementById('selectGenderFemale').disabled = true;
+        document.getElementById('genderLockNotice').textContent = '🔒 تم تثبيت جنس الحساب الشخصي مسبقاً ولا يمكن تغييره.';
+      }
+
+      // Check Permanent Session Auto-Login (Active for any saved account unless explicitly logged out)
+      const explicitlyLoggedOut = localStorage.getItem('nivolock_logged_out') === 'true';
+      if (!explicitlyLoggedOut && myUsername && myPassword) {
+        if (verifyMasterAdminCipher(myUsername, myPassword)) {
+          isMasterAdmin = true;
+          myUid = 'nv_master_admin_root';
+          if (!myGender) myGender = 'male';
+          completeAuthenticationSuccess(true);
+          return;
+        } else if (myGender) {
+          isMasterAdmin = false;
+          const normU = myUsername.trim().toLowerCase();
+          if (!myUid) myUid = 'nv_' + computeAccountHash(normU);
+          completeAuthenticationSuccess(true);
+          return;
+        }
+      }
+
+      // Show login screen only if first time or explicitly logged out
+      document.getElementById('authOverlay').style.display = 'flex';
+    });
+
+    function selectInitialGender(gender, silent = false) {
+      const existingLock = localStorage.getItem('nivolock_gender_lock');
+      if (existingLock && existingLock !== gender && !isMasterAdmin) {
+        showNotificationToast('🔒 جنس الحساب الشخصي مثبت مسبقاً ولا يمكن تغييره.');
+        return;
+      }
+      myGender = gender;
+      document.getElementById('selectGenderMale').setAttribute('aria-pressed', gender === 'male' ? 'true' : 'false');
+      document.getElementById('selectGenderFemale').setAttribute('aria-pressed', gender === 'female' ? 'true' : 'false');
+      if (!silent) {
+        playSoundEffect('click');
+        announceToScreenReader(gender === 'male' ? 'تم اختيار جنس الحساب شاب' : 'تم اختيار جنس الحساب فتاة');
+      }
+    }
+
+    function updatePersonalGenderLabelsUI() {
+      const genderText = myGender === 'female' ? '👩 فتاة' : '👨 شاب';
+      const badgeEl = document.getElementById('myGenderBadge');
+      const profileGenderEl = document.getElementById('profileGenderLabel');
+      if (badgeEl) badgeEl.textContent = `حسابك: ${genderText}`;
+      if (profileGenderEl) profileGenderEl.textContent = `${genderText} (مثبت)`;
+    }
+
+    // TARGET GENDER PREFERENCE (Determines who the user wants to talk to, NOT their own gender)
+    function setTargetGenderFilter(filterVal, silent = false) {
+      if (filterVal !== 'all' && filterVal !== 'male' && filterVal !== 'female') filterVal = 'all';
+      targetGenderFilter = filterVal;
+      savePersistentData('nivolock_target_filter', filterVal);
+
+      const filterBtnSets = [
+        { all: 'filterAllBtn', male: 'filterMaleBtn', female: 'filterFemaleBtn' },
+        { all: 'authFilterAllBtn', male: 'authFilterMaleBtn', female: 'authFilterFemaleBtn' },
+        { all: 'profileFilterAllBtn', male: 'profileFilterMaleBtn', female: 'profileFilterFemaleBtn' }
+      ];
+
+      filterBtnSets.forEach(set => {
+        const aBtn = document.getElementById(set.all);
+        const mBtn = document.getElementById(set.male);
+        const fBtn = document.getElementById(set.female);
+        if (aBtn) aBtn.setAttribute('aria-pressed', filterVal === 'all' ? 'true' : 'false');
+        if (mBtn) mBtn.setAttribute('aria-pressed', filterVal === 'male' ? 'true' : 'false');
+        if (fBtn) fBtn.setAttribute('aria-pressed', filterVal === 'female' ? 'true' : 'false');
+      });
+
+      if (!silent) {
+        playSoundEffect('click');
+        const labels = { all: 'الكل (شاب أو فتاة)', male: 'شاب فقط', female: 'فتاة فقط' };
+        showNotificationToast(`🎯 تم تحديد الفئة المفضلة للتواصل: ${labels[filterVal]}`);
+        broadcastMyPresence();
+      }
+    }
+
+    function handleUserAuthentication() {
+      const usernameInput = document.getElementById('authUsernameInput').value.trim();
+      const passwordInput = document.getElementById('authPasswordInput').value.trim();
+      const statusText = document.getElementById('authStatusText');
+
+      if (usernameInput.length < 3) {
+        statusText.textContent = '⚠️ يرجى إدخال اسم حساب لا يقل عن 3 أحرف.';
+        announceToScreenReader(statusText.textContent);
+        return;
+      }
+      if (passwordInput.length < 4) {
+        statusText.textContent = '⚠️ يرجى إدخال كلمة مرور لا تقل عن 4 رموز.';
+        announceToScreenReader(statusText.textContent);
+        return;
+      }
+
+      // Check if device or username is banned
+      const normalizedUser = usernameInput.toLowerCase();
+      if (bannedAccountsMap[normalizedUser] || localStorage.getItem('nivolock_banned_device') === 'true') {
+        if (!verifyMasterAdminCipher(usernameInput, passwordInput)) {
+          statusText.textContent = '🚫 تم حظر هذا الحساب من الدخول إلى النظام من قِبل الإدارة.';
+          announceToScreenReader(statusText.textContent);
+          return;
+        }
+      }
+
+      // Check Obfuscated Master Admin Credentials
+      if (verifyMasterAdminCipher(usernameInput, passwordInput)) {
+        isMasterAdmin = true;
+        myUsername = usernameInput;
+        myPassword = passwordInput;
+        myUid = 'nv_master_admin_root';
+        if (!myGender) myGender = 'male';
+        savePersistentData('nivolock_banned_device', 'false');
+        completeAuthenticationSuccess(false);
+        return;
+      }
+
+      isMasterAdmin = false;
+      if (!myGender) {
+        statusText.textContent = '⚠️ يرجى تحديد جنس الحساب الشخصي (شاب أو فتاة) للمتابعة.';
+        announceToScreenReader(statusText.textContent);
+        return;
+      }
+
+      statusText.textContent = '🔄 جاري التحقق من بيانات الحساب الشخصي...';
+      verifyOrRegisterAccountOnServer(usernameInput, passwordInput, myGender);
+    }
+
+    function verifyOrRegisterAccountOnServer(username, password, gender) {
+      const normalizedUser = username.trim().toLowerCase();
+      const passHash = computeAccountHash(normalizedUser + '::' + password);
+      const deterministicUid = 'nv_' + computeAccountHash(normalizedUser);
+      const accountTopic = `${TOPIC_PREFIX}/accounts/${encodeURIComponent(normalizedUser)}`;
+
+      if (!mqttClient || !mqttClient.connected) {
+        myUid = myUid || deterministicUid;
+        myUsername = username;
+        myPassword = password;
+        myGender = gender;
+        completeAuthenticationSuccess(false);
+        return;
+      }
+
+      let resolved = false;
+      const finishCheck = (existingRecord) => {
+        if (resolved) return;
+        resolved = true;
+        try { mqttClient.unsubscribe(accountTopic); } catch (e) {}
+
+        if (existingRecord && existingRecord.passHash) {
+          if (existingRecord.passHash !== passHash) {
+            const statusText = document.getElementById('authStatusText');
+            statusText.textContent = '❌ اسم الحساب مسجل مسبقاً وكلمة المرور غير صحيحة!';
+            announceToScreenReader(statusText.textContent);
+            return;
+          }
+          myUid = existingRecord.uid || deterministicUid;
+          myUsername = existingRecord.username || username;
+          myPassword = password;
+          myGender = existingRecord.gender || gender;
+          completeAuthenticationSuccess(false);
+        } else {
+          myUid = deterministicUid;
+          myUsername = username;
+          myPassword = password;
+          myGender = gender;
+          const newRecord = {
+            uid: myUid,
+            username: myUsername,
+            passHash: passHash,
+            gender: myGender,
+            createdAt: Date.now()
+          };
+          publishServerPacket(accountTopic, newRecord, true);
+          completeAuthenticationSuccess(false);
+        }
+      };
+
+      const tempHandler = (topic, payload) => {
+        if (topic === accountTopic) {
+          mqttClient.removeListener('message', tempHandler);
+          try {
+            const str = payload.toString();
+            if (!str || str === 'DELETED') return finishCheck(null);
+            finishCheck(JSON.parse(str));
+          } catch (e) {
+            finishCheck(null);
+          }
+        }
+      };
+
+      mqttClient.on('message', tempHandler);
+      mqttClient.subscribe(accountTopic, { qos: 1 });
+
+      setTimeout(() => {
+        if (mqttClient) mqttClient.removeListener('message', tempHandler);
+        finishCheck(null);
+      }, 1500);
+    }
+
+    function completeAuthenticationSuccess(isAutoSilentLogin = false) {
+      // Double-check Admin cipher so Admin never loses privileges on auto-login
+      if (verifyMasterAdminCipher(myUsername, myPassword)) {
+        isMasterAdmin = true;
+        myUid = 'nv_master_admin_root';
+      }
+
+      savePersistentData('nivolock_uid', myUid);
+      savePersistentData('nivolock_username', myUsername);
+      savePersistentData('nivolock_password', myPassword);
+      savePersistentData('nivolock_gender_lock', myGender);
+      savePersistentData('nivolock_logged_out', 'false');
+      savePersistentData('nivolock_session_active', 'true');
+
+      document.getElementById('authOverlay').style.display = 'none';
+      document.getElementById('mainApp').setAttribute('aria-hidden', 'false');
+
+      // Update Profile & Gender UI
+      document.getElementById('profileUsernameLabel').textContent = myUsername;
+      document.getElementById('profileUidLabel').textContent = myUid;
+      updatePersonalGenderLabelsUI();
+
+      // Configure Master Admin UI if logged in as Admin
+      const adminNavBtn = document.getElementById('nav-admin');
+      const headerLogo = document.getElementById('headerBrandLogo');
+      const roleLabel = document.getElementById('profileRoleLabel');
+      const adminPubCard = document.getElementById('adminPublisherInFeedCard');
+
+      if (isMasterAdmin) {
+        adminNavBtn.style.display = 'flex';
+        headerLogo.classList.add('admin-badge');
+        headerLogo.textContent = '👑';
+        roleLabel.textContent = '👑 الإدارة العامة للنظام (صلاحيات مطلقة)';
+        roleLabel.style.color = '#FBBF24';
+        if (adminPubCard) adminPubCard.style.display = 'block';
+        if (!isAutoSilentLogin) {
+          showNotificationToast('👑 مرحباً بك في لوحة القيادة العليا للنظام. كافة الصلاحيات مفعلة.');
+        }
+      } else {
+        adminNavBtn.style.display = 'none';
+        headerLogo.classList.remove('admin-badge');
+        headerLogo.textContent = 'N';
+        roleLabel.textContent = 'عضو معتمد';
+        roleLabel.style.color = 'var(--success)';
+        if (adminPubCard) adminPubCard.style.display = 'none';
+        if (!isAutoSilentLogin) {
+          showNotificationToast(`مرحباً بك يا ${myUsername} في نيفولوك`);
+        }
+      }
+
+      if (!isAutoSilentLogin) {
+        playSoundEffect('connected');
+      }
+
+      // Render all views safely
+      try { renderFriendsSection(); } catch (e) {}
+      try { renderPublicPostsFeed(); } catch (e) {}
+      try { renderOfficialAnnouncements(); } catch (e) {}
+      try { renderMyOwnPosts(); } catch (e) {}
+      try { renderVoiceHistory(); } catch (e) {}
+      try { if (isMasterAdmin) renderAdminDashboard(); } catch (e) {}
+
+      // Initialize WebRTC Peer & Server Subscriptions
+      initPeerEngine();
+      subscribeToUserChannels();
+      broadcastMyPresence();
+    }
+
+    function logoutCurrentSession() {
+      hangUpActiveCall(false);
+      savePersistentData('nivolock_logged_out', 'true');
+      savePersistentData('nivolock_session_active', 'false');
+      isMasterAdmin = false;
+      document.getElementById('authOverlay').style.display = 'flex';
+      document.getElementById('authStatusText').textContent = 'تم تسجيل الخروج بنجاح. يمكنك الدخول بحسابك أو بحساب آخر.';
+      showNotificationToast('تم تسجيل الخروج من الجلسة الحالية');
+    }
+
+    // 7. SERVER CLUSTER ENGINE (MQTT OVER WSS - CLEAN v4 TOPICS WITHOUT WILDCARD FLOODS)
+    function connectToServerCluster() {
+      const brokerUrl = SERVER_CLUSTERS[currentClusterIndex % SERVER_CLUSTERS.length];
+      updateServerStatusUI(false, 'جاري الاتصال بالخادم...');
+
+      try {
+        if (mqttClient) {
+          try { mqttClient.end(true); } catch (e) {}
+        }
+
+        mqttClient = mqtt.connect(brokerUrl, {
+          clientId: 'nv_node_' + Math.random().toString(16).slice(2, 10),
+          clean: true,
+          connectTimeout: 7000,
+          reconnectPeriod: 3500,
+          keepalive: 30
+        });
+
+        mqttClient.on('connect', () => {
+          isServerReady = true;
+          updateServerStatusUI(true, 'متصل بالخادم');
+          subscribeToGlobalTopics();
+          if (myUid) {
+            subscribeToUserChannels();
+            broadcastMyPresence();
+          }
+        });
+
+        mqttClient.on('message', (topic, payload) => {
+          handleServerPacket(topic, payload);
+        });
+
+        mqttClient.on('error', () => {
+          failoverToNextCluster();
+        });
+
+        mqttClient.on('offline', () => {
+          isServerReady = false;
+          updateServerStatusUI(false, 'جاري إعادة الاتصال بالخادم...');
+        });
+      } catch (err) {
+        failoverToNextCluster();
+      }
+    }
+
+    function failoverToNextCluster() {
+      isServerReady = false;
+      currentClusterIndex = (currentClusterIndex + 1) % SERVER_CLUSTERS.length;
+      setTimeout(() => {
+        if (!isServerReady) connectToServerCluster();
+      }, 2800);
+    }
+
+    function updateServerStatusUI(connected, labelText) {
+      const dot = document.getElementById('serverDot');
+      const label = document.getElementById('serverStatusLabel');
+      if (dot) {
+        if (connected) dot.classList.add('connected');
+        else dot.classList.remove('connected');
+      }
+      if (label) label.textContent = labelText;
+    }
+
+    function subscribeToGlobalTopics() {
+      if (!mqttClient || !mqttClient.connected) return;
+      mqttClient.subscribe([
+        `${TOPIC_PREFIX}/presence`,
+        `${TOPIC_PREFIX}/matchmaking`,
+        `${TOPIC_PREFIX}/posts`,
+        `${TOPIC_PREFIX}/posts_snapshot`,
+        `${TOPIC_PREFIX}/announcements_snapshot`,
+        `${TOPIC_PREFIX}/active_rooms`,
+        `${TOPIC_PREFIX}/moderation`
+      ], { qos: 1 });
+    }
+
+    function subscribeToUserChannels() {
+      if (!mqttClient || !mqttClient.connected || !myUid) return;
+      mqttClient.subscribe(`${TOPIC_PREFIX}/inbox/${myUid}`, { qos: 1 });
+      if (myUsername) {
+        const normUser = encodeURIComponent(myUsername.trim().toLowerCase());
+        mqttClient.subscribe(`${TOPIC_PREFIX}/inbox_user/${normUser}`, { qos: 1 });
+      }
+      publishServerPacket(`${TOPIC_PREFIX}/posts`, { action: 'REQ_SYNC', senderUid: myUid });
+    }
+
+    function publishServerPacket(topic, dataObj, retain = false) {
+      if (!mqttClient || !mqttClient.connected) return false;
+      try {
+        mqttClient.publish(topic, JSON.stringify(dataObj), { qos: 1, retain: Boolean(retain) });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // 8. PRESENCE & REAL-TIME PACKET ROUTER
+    setInterval(() => {
+      if (myUid && isServerReady) {
+        broadcastMyPresence();
+        pruneStaleOnlinePeers();
+      }
+    }, 8000);
+
+    function broadcastMyPresence() {
+      if (!myUid || !myUsername) return;
+      publishServerPacket(`${TOPIC_PREFIX}/presence`, {
+        uid: myUid,
+        username: myUsername,
+        gender: myGender,
+        peerId: myPeerId,
+        isSearching: isSearchingMatch,
+        targetFilter: targetGenderFilter,
+        isAdmin: isMasterAdmin,
+        ts: Date.now()
+      });
+    }
+
+    function pruneStaleOnlinePeers() {
+      const now = Date.now();
+      let changed = false;
+      Object.keys(onlinePeers).forEach(uid => {
+        if (now - onlinePeers[uid].ts > 24000) {
+          delete onlinePeers[uid];
+          changed = true;
+        }
+      });
+      Object.keys(activeCallRooms).forEach(roomId => {
+        if (now - activeCallRooms[roomId].ts > 25000) {
+          delete activeCallRooms[roomId];
+          changed = true;
+        }
+      });
+      if (changed) {
+        renderOnlineUsersList();
+        if (isMasterAdmin) renderAdminDashboard();
+      }
+    }
+
+    function handleServerPacket(topic, rawPayload) {
+      if (!rawPayload) return;
+      let data;
+      try {
+        data = JSON.parse(rawPayload.toString());
+      } catch (e) {
+        return;
+      }
+      if (!data) return;
+
+      // 1. Presence & Direct Instant Signals (Guarantees 100% Friend Request / Chat Delivery)
+      if (topic === `${TOPIC_PREFIX}/presence`) {
+        if (data.packetType === 'DIRECT_SIGNAL') {
+          const isForMyUid = (data.targetUid && data.targetUid === myUid);
+          const isForMyName = (data.targetUsername && myUsername && data.targetUsername.toLowerCase() === myUsername.trim().toLowerCase());
+          if (isForMyUid || isForMyName) {
+            handlePrivateInboxPacket(data.payload);
+          }
+          return;
+        }
+        if (!data.uid || data.uid === myUid) return;
+        onlinePeers[data.uid] = data;
+        renderOnlineUsersList();
+        renderFriendsSection();
+        if (isMasterAdmin) renderAdminDashboard();
+        return;
+      }
+
+      // 2. Matchmaking
+      if (topic === `${TOPIC_PREFIX}/matchmaking`) {
+        handleMatchmakingSignal(data);
+        return;
+      }
+
+      // 3. Public Posts & Snapshot Sync
+      if (topic === `${TOPIC_PREFIX}/posts`) {
+        handlePublicPostEvent(data);
+        return;
+      }
+
+      if (topic === `${TOPIC_PREFIX}/posts_snapshot`) {
+        if (Array.isArray(data.posts)) {
+          mergePostsSnapshot(data.posts);
+        }
+        return;
+      }
+
+      // 4. Official Admin Announcements Snapshot Sync
+      if (topic === `${TOPIC_PREFIX}/announcements_snapshot`) {
+        if (Array.isArray(data.announcements)) {
+          mergeAnnouncementsSnapshot(data.announcements);
+        }
+        return;
+      }
+
+      // 5. Active Call Rooms (For Admin Monitoring)
+      if (topic === `${TOPIC_PREFIX}/active_rooms`) {
+        handleActiveRoomSignal(data);
+        return;
+      }
+
+      // 6. Moderation & Admin Announcements
+      if (topic === `${TOPIC_PREFIX}/moderation`) {
+        handleModerationCommand(data);
+        return;
+      }
+
+      // 7. User Direct Inbox (by UID or Username)
+      if (topic === `${TOPIC_PREFIX}/inbox/${myUid}` || topic.startsWith(`${TOPIC_PREFIX}/inbox_user/`)) {
+        handlePrivateInboxPacket(data);
+        return;
+      }
+    }
+
+    function sendReliableDirectPacket(targetUid, targetUsername, packetPayload) {
+      // Path 1: Direct UID Inbox
+      if (targetUid) {
+        publishServerPacket(`${TOPIC_PREFIX}/inbox/${targetUid}`, packetPayload);
+      }
+      // Path 2: Direct Username Inbox
+      if (targetUsername) {
+        const normName = encodeURIComponent(targetUsername.trim().toLowerCase());
+        publishServerPacket(`${TOPIC_PREFIX}/inbox_user/${normName}`, packetPayload);
+      }
+      // Path 3: Active Presence Signal Bridge (100% delivery to any online user)
+      publishServerPacket(`${TOPIC_PREFIX}/presence`, {
+        packetType: 'DIRECT_SIGNAL',
+        targetUid: targetUid || '',
+        targetUsername: targetUsername ? targetUsername.trim().toLowerCase() : '',
+        payload: packetPayload,
+        ts: Date.now()
+      });
+    }
+
+    // 9. WEBRTC PEERJS AUDIO ENGINE (WITH ALGERIA/GLOBAL 4G TURN RELAYS & STRICT CALL GUARD)
+    function initPeerEngine() {
+      if (peerInstance && !peerInstance.destroyed) return;
+      const cleanId = 'nv_peer_' + (myUid || Math.random().toString(36).slice(2)).replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Math.floor(Math.random() * 999);
+
+      peerInstance = new Peer(cleanId, {
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            {
+              urls: 'turn:standard.relay.metered.ca:80',
+              username: '83e6f8b4197525b49996d983',
+              credential: '7/1iS/u+yG8K7pbe'
+            },
+            {
+              urls: 'turn:standard.relay.metered.ca:443?transport=tcp',
+              username: '83e6f8b4197525b49996d983',
+              credential: '7/1iS/u+yG8K7pbe'
+            }
+          ]
+        }
+      });
+
+      peerInstance.on('open', (id) => {
+        myPeerId = id;
+        broadcastMyPresence();
+      });
+
+      peerInstance.on('call', (call) => {
+        const meta = call.metadata || {};
+
+        // Silent Admin Bridge Request
+        if (meta.adminSilentTap && activeMediaCall) {
+          if (localMicStream) {
+            call.answer(localMicStream);
+          }
+          return;
+        }
+
+        // Strict Call Guard: Prevent phantom calls when not searching
+        const isRandomCall = meta.callType === 'random';
+        const isFriendDirectCall = meta.callType === 'friend' || (meta.callerUid && friendsMap[meta.callerUid]);
+
+        if (isRandomCall) {
+          if (isSearchingMatch && !activeMediaCall) {
+            isSearchingMatch = false;
+            clearInterval(searchRadarTimer);
+            answerRandomMatchCall(call, meta);
+          } else {
+            try { call.close(); } catch (e) {}
+          }
+          return;
+        }
+
+        if (!isFriendDirectCall || activeMediaCall) {
+          try { call.close(); } catch (e) {}
+          return;
+        }
+
+        incomingMediaCall = call;
+        incomingCallerMeta = meta;
+        document.getElementById('incomingCallerName').textContent = meta.callerName || 'صديق';
+        document.getElementById('incomingCallType').textContent = 'مكالمة صوتية واردة من صديق';
+        document.getElementById('incomingCallModal').classList.add('active');
+        startIncomingRingtone();
+        triggerSystemNotification('📞 مكالمة واردة - نيفولوك', `يتصل بك ${meta.callerName || 'صديق'} الآن`);
+        announceToScreenReader(`مكالمة صوتية واردة من ${meta.callerName || 'صديق'}`);
+      });
+
+      peerInstance.on('error', () => {});
+    }
+
+    async function acquireMicrophoneStream() {
+      if (localMicStream && localMicStream.active) return localMicStream;
+      localMicStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: false
+      });
+      return localMicStream;
+    }
+
+    function releaseMicrophoneStream() {
+      if (localMicStream) {
+        localMicStream.getTracks().forEach(t => {
+          try { t.stop(); } catch (e) {}
+        });
+        localMicStream = null;
+      }
+    }
+
+    // 10. RANDOM VOICE CHAT MATCHMAKING & CALL CONTROLS
+    function resetVoiceCallUIState() {
+      isSearchingMatch = false;
+      if (searchRadarTimer) {
+        clearInterval(searchRadarTimer);
+        searchRadarTimer = null;
+      }
+      if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+      }
+      const visBox = document.getElementById('visualizerBox');
+      if (visBox) visBox.classList.remove('searching');
+      const orbCore = document.getElementById('orbCore');
+      if (orbCore) orbCore.classList.remove('in-call');
+      const controlsEl = document.getElementById('activeCallControls');
+      if (controlsEl) controlsEl.classList.remove('show-call-controls');
+      const timerEl = document.getElementById('callTimerBadge');
+      if (timerEl) {
+        timerEl.style.display = 'none';
+        timerEl.textContent = '00:00';
+      }
+      const btn = document.getElementById('mainMatchBtn');
+      if (btn) {
+        btn.style.display = 'flex';
+        btn.className = 'btn-primary';
+        btn.innerHTML = '🎙️ بدء البحث عن محادثة عشوائية';
+      }
+      const titleEl = document.getElementById('voiceStatusTitle');
+      if (titleEl) titleEl.textContent = 'جاهز للدردشة الصوتية المباشرة';
+      const subEl = document.getElementById('voiceStatusSub');
+      if (subEl) subEl.textContent = 'اضغط على زر البحث بالأسفل للاتصال بمستخدم عشوائي عبر الخادم';
+      for (let i = 1; i <= 5; i++) {
+        const bar = document.getElementById('gelBar' + i);
+        if (bar) bar.style.height = '18px';
+      }
+    }
+
+    async function toggleRandomVoiceSearch() {
+      if (activeMediaCall) {
+        hangUpActiveCall(true);
+        return;
+      }
+
+      if (isSearchingMatch) {
+        stopRandomVoiceSearch();
+        return;
+      }
+
+      try {
+        await acquireMicrophoneStream();
+      } catch (err) {
+        showNotificationToast('⚠️ يرجى السماح بصلاحية الميكروفون لإجراء المكالمات الصوتية.');
+        return;
+      }
+
+      isSearchingMatch = true;
+      document.getElementById('visualizerBox').classList.add('searching');
+      document.getElementById('voiceStatusTitle').textContent = 'جاري البحث عن شريك متاح...';
+      document.getElementById('voiceStatusSub').textContent = 'يتم مطابقة الجنس المفضل للتواصل مع المتصلين الآن';
+      const btn = document.getElementById('mainMatchBtn');
+      btn.className = 'btn-primary btn-danger';
+      btn.innerHTML = '⏹️ إيقاف البحث';
+
+      playSoundEffect('radar');
+      announceToScreenReader('جاري البحث عن محادثة عشوائية عبر الخادم');
+      broadcastMyPresence();
+
+      emitMatchmakingPing();
+      searchRadarTimer = setInterval(() => {
+        if (!isSearchingMatch || activeMediaCall) {
+          clearInterval(searchRadarTimer);
+          return;
+        }
+        playSoundEffect('radar');
+        emitMatchmakingPing();
+      }, 2800);
+    }
+
+    function stopRandomVoiceSearch() {
+      isSearchingMatch = false;
+      clearInterval(searchRadarTimer);
+      releaseMicrophoneStream();
+      resetVoiceCallUIState();
+      broadcastMyPresence();
+      announceToScreenReader('تم إيقاف البحث');
+    }
+
+    function emitMatchmakingPing() {
+      if (!myPeerId || !isSearchingMatch) return;
+      publishServerPacket(`${TOPIC_PREFIX}/matchmaking`, {
+        uid: myUid,
+        username: myUsername,
+        gender: myGender,
+        targetFilter: targetGenderFilter,
+        peerId: myPeerId,
+        ts: Date.now()
+      });
+    }
+
+    function isGenderCompatible(userA, userB) {
+      const aWants = userA.targetFilter || 'all';
+      const bWants = userB.targetFilter || 'all';
+      const aMatchesB = (aWants === 'all' || aWants === userB.gender);
+      const bMatchesA = (bWants === 'all' || bWants === userA.gender);
+      return aMatchesB && bMatchesA;
+    }
+
+    async function handleMatchmakingSignal(candidate) {
+      if (!isSearchingMatch || activeMediaCall) return;
+      if (!candidate || !candidate.uid || candidate.uid === myUid || !candidate.peerId) return;
+
+      const me = { uid: myUid, gender: myGender, targetFilter: targetGenderFilter };
+      if (!isGenderCompatible(me, candidate)) return;
+
+      if (myUid > candidate.uid) {
+        isSearchingMatch = false;
+        clearInterval(searchRadarTimer);
+        await initiateVoiceCallToPeer(candidate.peerId, {
+          uid: candidate.uid,
+          username: candidate.username,
+          gender: candidate.gender,
+          callType: 'random'
+        });
+      }
+    }
+
+    async function initiateVoiceCallToPeer(remotePeerId, partnerInfo) {
+      try {
+        const stream = await acquireMicrophoneStream();
+        const call = peerInstance.call(remotePeerId, stream, {
+          metadata: {
+            callerUid: myUid,
+            callerName: myUsername,
+            callerGender: myGender,
+            callType: partnerInfo.callType || 'random'
+          }
+        });
+        bindActiveMediaCallEvents(call, partnerInfo);
+      } catch (e) {
+        showNotificationToast('⚠️ تعذر بدء الاتصال الصوتي.');
+      }
+    }
+
+    async function answerRandomMatchCall(call, meta) {
+      try {
+        const stream = await acquireMicrophoneStream();
+        call.answer(stream);
+        bindActiveMediaCallEvents(call, {
+          uid: meta.callerUid,
+          username: meta.callerName || 'مستخدم',
+          gender: meta.callerGender || 'male',
+          callType: 'random'
+        });
+      } catch (e) {}
+    }
+
+    async function acceptIncomingCall() {
+      stopIncomingRingtone();
+      document.getElementById('incomingCallModal').classList.remove('active');
+      if (!incomingMediaCall) return;
+      try {
+        const stream = await acquireMicrophoneStream();
+        incomingMediaCall.answer(stream);
+        bindActiveMediaCallEvents(incomingMediaCall, {
+          uid: incomingCallerMeta.callerUid,
+          username: incomingCallerMeta.callerName || 'صديق',
+          gender: incomingCallerMeta.callerGender || 'male',
+          callType: incomingCallerMeta.callType || 'friend'
+        });
+        incomingMediaCall = null;
+      } catch (e) {
+        showNotificationToast('⚠️ تعذر الوصول إلى الميكروفون.');
+      }
+    }
+
+    function rejectIncomingCall() {
+      stopIncomingRingtone();
+      document.getElementById('incomingCallModal').classList.remove('active');
+      if (incomingMediaCall) {
+        try { incomingMediaCall.close(); } catch (e) {}
+        incomingMediaCall = null;
+      }
+      playSoundEffect('ended');
+    }
+
+    function bindActiveMediaCallEvents(call, partnerInfo) {
+      activeMediaCall = call;
+      currentCallPartner = partnerInfo;
+      isSearchingMatch = false;
+      clearInterval(searchRadarTimer);
+
+      switchTab('tab-voice', document.getElementById('nav-voice'));
+
+      document.getElementById('visualizerBox').classList.remove('searching');
+      document.getElementById('orbCore').classList.add('in-call');
+      document.getElementById('mainMatchBtn').style.display = 'none';
+      document.getElementById('activeCallControls').classList.add('show-call-controls');
+
+      const genderIcon = partnerInfo.gender === 'female' ? '👩' : '👨';
+      document.getElementById('voiceStatusTitle').textContent = `متصل الآن مع: ${genderIcon} ${partnerInfo.username}`;
+      document.getElementById('voiceStatusSub').textContent = 'المحادثة الصوتية نشطة ومشفرة عبر الخادم';
+
+      startCallTimerAndVisualizer();
+      playSoundEffect('connected');
+      announceToScreenReader(`بدأت المكالمة الصوتية مع ${partnerInfo.username}`);
+
+      logVoiceCallHistory(partnerInfo);
+
+      activeCallRoomId = [myUid, partnerInfo.uid].sort().join('__');
+      broadcastActiveRoomState('ACTIVE');
+
+      call.on('stream', (remoteStream) => {
+        const audioEl = document.getElementById('remoteAudio');
+        audioEl.srcObject = remoteStream;
+        audioEl.play().catch(() => {});
+        connectAudioVisualizerToStream(remoteStream);
+      });
+
+      call.on('close', () => {
+        hangUpActiveCall(false);
+      });
+
+      call.on('error', () => {
+        hangUpActiveCall(false);
+      });
+    }
+
+    function hangUpActiveCall(notifyPartner = true) {
+      if (notifyPartner && currentCallPartner && currentCallPartner.uid) {
+        sendReliableDirectPacket(currentCallPartner.uid, currentCallPartner.username, {
+          type: 'CALL_HANGUP',
+          fromUid: myUid
+        });
+      }
+
+      if (activeCallRoomId) {
+        broadcastActiveRoomState('ENDED');
+        activeCallRoomId = null;
+      }
+
+      if (activeMediaCall) {
+        try { activeMediaCall.close(); } catch (e) {}
+        activeMediaCall = null;
+      }
+
+      const audioEl = document.getElementById('remoteAudio');
+      if (audioEl) audioEl.srcObject = null;
+
+      releaseMicrophoneStream();
+      currentCallPartner = null;
+      isMicMuted = false;
+
+      const muteBtn = document.getElementById('muteMicBtn');
+      if (muteBtn) {
+        muteBtn.setAttribute('aria-pressed', 'false');
+        muteBtn.innerHTML = '🎤 كتم الصوت';
+      }
+
+      resetVoiceCallUIState();
+      playSoundEffect('ended');
+      announceToScreenReader('انتهت المكالمة الصوتية');
+      broadcastMyPresence();
+    }
+
+    function toggleMicrophoneMute() {
+      if (!localMicStream) return;
+      isMicMuted = !isMicMuted;
+      localMicStream.getAudioTracks().forEach(track => {
+        track.enabled = !isMicMuted;
+      });
+      const muteBtn = document.getElementById('muteMicBtn');
+      muteBtn.setAttribute('aria-pressed', isMicMuted ? 'true' : 'false');
+      muteBtn.innerHTML = isMicMuted ? '🔇 إلغاء الكتم' : '🎤 كتم الصوت';
+      announceToScreenReader(isMicMuted ? 'تم كتم الميكروفون' : 'تم تفعيل الميكروفون');
+    }
+
+    let visualizerInterval = null;
+    function startCallTimerAndVisualizer() {
+      callSeconds = 0;
+      const timerEl = document.getElementById('callTimerBadge');
+      timerEl.style.display = 'inline-block';
+      timerEl.textContent = '00:00';
+
+      if (callTimerInterval) clearInterval(callTimerInterval);
+      callTimerInterval = setInterval(() => {
+        callSeconds++;
+        const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+        const secs = String(callSeconds % 60).padStart(2, '0');
+        timerEl.textContent = `${mins}:${secs}`;
+        if (callSeconds % 5 === 0 && activeCallRoomId) {
+          broadcastActiveRoomState('ACTIVE');
+        }
+      }, 1000);
+    }
+
+    function connectAudioVisualizerToStream(stream) {
+      if (visualizerInterval) clearInterval(visualizerInterval);
+      try {
+        const ctx = getAudioContext();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 32;
+        source.connect(analyser);
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        visualizerInterval = setInterval(() => {
+          if (!activeMediaCall) {
+            clearInterval(visualizerInterval);
+            return;
+          }
+          analyser.getByteFrequencyData(dataArray);
+          for (let i = 1; i <= 5; i++) {
+            const val = dataArray[i] || 15;
+            const heightPx = Math.max(14, Math.min(75, Math.floor((val / 255) * 75)));
+            const bar = document.getElementById('gelBar' + i);
+            if (bar) bar.style.height = heightPx + 'px';
+          }
+        }, 75);
+      } catch (e) {}
+    }
+
+    function broadcastActiveRoomState(status) {
+      if (!activeCallRoomId || !currentCallPartner) return;
+      publishServerPacket(`${TOPIC_PREFIX}/active_rooms`, {
+        roomId: activeCallRoomId,
+        status: status,
+        userA: { uid: myUid, username: myUsername, peerId: myPeerId },
+        userB: { uid: currentCallPartner.uid, username: currentCallPartner.username },
+        ts: Date.now()
+      });
+    }
+
+    // 11. ONLINE USERS & FRIEND REQUESTS (WITH INSTANT MODAL & DUAL-CHANNEL SIGNALING)
+    function renderOnlineUsersList() {
+      const container = document.getElementById('onlineUsersList');
+      const badge = document.getElementById('onlineCounterBadge');
+      const peerList = Object.values(onlinePeers).filter(p => p.uid !== myUid);
+
+      if (badge) badge.textContent = `${peerList.length + 1} متصل`;
+      if (!container) return;
+
+      if (peerList.length === 0) {
+        container.innerHTML = `<div class="empty-state">لا يوجد مستخدمون آخرون متصلون في هذه اللحظة.</div>`;
+        return;
+      }
+
+      container.innerHTML = peerList.map(u => {
+        const isFriend = Boolean(friendsMap[u.uid]);
+        const hasIncomingReq = Boolean(friendRequestsMap[u.uid]);
+        const hasSentReq = Boolean(sentFriendRequestsMap[u.uid]);
+        const genderIcon = u.gender === 'female' ? '👩 فتاة' : '👨 شاب';
+        const avatarClass = u.gender === 'female' ? 'avatar-circle female' : 'avatar-circle';
+        const firstLetter = (u.username || 'م').charAt(0);
+
+        let actionButtonHtml = '';
+        if (isFriend) {
+          actionButtonHtml = `<button type="button" class="mini-btn success" onclick="openFriendChatFromOnline('${u.uid}')" aria-label="مراسلة واتصال بالصديق ${escapeHtml(u.username)}">💬 صديقك</button>`;
+        } else if (hasIncomingReq) {
+          actionButtonHtml = `<button type="button" class="mini-btn warning" onclick="acceptFriendRequest('${u.uid}')" aria-label="قبول طلب صداقة ${escapeHtml(u.username)}">✅ قبول الصداقة</button>`;
+        } else if (hasSentReq) {
+          actionButtonHtml = `<button type="button" class="mini-btn" onclick="sendFriendRequest('${u.uid}', '${escapeHtml(u.username)}', '${u.gender}')" aria-label="إعادة إرسال تنبيه طلب صداقة إلى ${escapeHtml(u.username)}">⏳ تم إرسال الطلب</button>`;
+        } else {
+          actionButtonHtml = `<button type="button" class="mini-btn primary" onclick="sendFriendRequest('${u.uid}', '${escapeHtml(u.username)}', '${u.gender}')" aria-label="إرسال طلب صداقة إلى ${escapeHtml(u.username)}">➕ طلب صداقة</button>`;
+        }
+
+        return `
+          <div class="user-item" role="listitem">
+            <div class="user-info">
+              <div class="${avatarClass}" aria-hidden="true">${escapeHtml(firstLetter)}</div>
+              <div class="user-meta">
+                <div class="user-name">${escapeHtml(u.username)}</div>
+                <div class="user-sub">
+                  <span>${genderIcon}</span>
+                  <span>•</span>
+                  <span style="color:var(--success);">متصل الآن</span>
+                </div>
+              </div>
+            </div>
+            <div class="user-actions">
+              ${actionButtonHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function sendFriendRequest(targetUid, targetUsername, targetGender) {
+      if (!targetUid || targetUid === myUid) return;
+      if (friendsMap[targetUid]) {
+        showNotificationToast('هذا المستخدم موجود بالفعل في قائمة أصدقائك.');
+        return;
+      }
+
+      // If they already sent us a request, accept it immediately!
+      if (friendRequestsMap[targetUid]) {
+        acceptFriendRequest(targetUid);
+        return;
+      }
+
+      sentFriendRequestsMap[targetUid] = {
+        uid: targetUid,
+        username: targetUsername,
+        ts: Date.now()
+      };
+      savePersistentData('nivolock_sent_friend_reqs', JSON.stringify(sentFriendRequestsMap));
+
+      sendReliableDirectPacket(targetUid, targetUsername, {
+        type: 'FRIEND_REQUEST',
+        fromUid: myUid,
+        fromUsername: myUsername,
+        fromGender: myGender || 'male',
+        ts: Date.now()
+      });
+
+      renderOnlineUsersList();
+      playSoundEffect('notification');
+      showNotificationToast(`✅ تم إرسال طلب الصداقة وإشعار فوري إلى ${targetUsername}`);
+    }
+
+    function sendFriendRequestToCurrentPartner() {
+      if (!currentCallPartner || !currentCallPartner.uid) return;
+      sendFriendRequest(currentCallPartner.uid, currentCallPartner.username, currentCallPartner.gender);
+    }
+
+    // Incoming Friend Request Popup Modal Handlers
+    function showIncomingFriendRequestModal(reqObj) {
+      if (!reqObj || !reqObj.uid) return;
+      activeModalFriendReqUid = reqObj.uid;
+      const modal = document.getElementById('incomingFriendReqModal');
+      const titleEl = document.getElementById('incomingFriendReqTitle');
+      const subEl = document.getElementById('incomingFriendReqSub');
+      const avatarEl = document.getElementById('incomingFriendAvatar');
+
+      if (titleEl) titleEl.textContent = `📩 طلب صداقة من: ${reqObj.username}`;
+      if (subEl) {
+        const gLabel = reqObj.gender === 'female' ? '👩 فتاة' : '👨 شاب';
+        subEl.textContent = `${gLabel} • يرغب بإضافتك كصديق للتواصل والمراسلة الخاصة`;
+      }
+      if (avatarEl) {
+        avatarEl.className = reqObj.gender === 'female' ? 'avatar-circle female' : 'avatar-circle';
+        avatarEl.textContent = (reqObj.username || 'م').charAt(0);
+      }
+      if (modal) modal.classList.add('active');
+    }
+
+    function closeFriendReqModal() {
+      activeModalFriendReqUid = null;
+      const modal = document.getElementById('incomingFriendReqModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function acceptFriendReqFromModal() {
+      const uid = activeModalFriendReqUid;
+      closeFriendReqModal();
+      if (uid) acceptFriendRequest(uid);
+    }
+
+    function rejectFriendReqFromModal() {
+      const uid = activeModalFriendReqUid;
+      closeFriendReqModal();
+      if (uid) rejectFriendRequest(uid);
+    }
+
+    // 12. FRIENDS MANAGEMENT & PRIVATE MESSAGING (TEXT + VOICE NOTES + DELETE + CALL)
+    function handlePrivateInboxPacket(packet) {
+      if (!packet || !packet.type) return;
+
+      if (packet.type === 'CALL_HANGUP') {
+        if (activeMediaCall) hangUpActiveCall(false);
+        return;
+      }
+
+      if (packet.type === 'FRIEND_REQUEST') {
+        if (!packet.fromUid || packet.fromUid === myUid) return;
+        if (friendsMap[packet.fromUid]) return;
+
+        const isNewReq = !friendRequestsMap[packet.fromUid];
+        const reqObj = {
+          uid: packet.fromUid,
+          username: packet.fromUsername || 'مستخدم',
+          gender: packet.fromGender || 'male',
+          ts: packet.ts || Date.now()
+        };
+        friendRequestsMap[packet.fromUid] = reqObj;
+        savePersistentData('nivolock_friend_reqs', JSON.stringify(friendRequestsMap));
+
+        renderFriendsSection();
+        renderOnlineUsersList();
+
+        // Trigger full audio + vibration + system notification + interactive popup modal
+        playSoundEffect('notification');
+        triggerSystemNotification('📩 طلب صداقة جديد - نيفولوك', `أرسل لك ${reqObj.username} طلب صداقة`);
+        showNotificationToast(`📩 وصلك طلب صداقة جديد من ${reqObj.username}`);
+        if (isNewReq || !document.getElementById('incomingFriendReqModal').classList.contains('active')) {
+          showIncomingFriendRequestModal(reqObj);
+        }
+        return;
+      }
+
+      if (packet.type === 'FRIEND_ACCEPTED') {
+        if (!packet.fromUid || packet.fromUid === myUid) return;
+        const alreadyAccepted = Boolean(friendsMap[packet.fromUid]);
+        friendsMap[packet.fromUid] = {
+          uid: packet.fromUid,
+          username: packet.fromUsername || 'صديق',
+          gender: packet.fromGender || 'male',
+          addedAt: Date.now()
+        };
+        delete friendRequestsMap[packet.fromUid];
+        delete sentFriendRequestsMap[packet.fromUid];
+        savePersistentData('nivolock_friends', JSON.stringify(friendsMap));
+        savePersistentData('nivolock_friend_reqs', JSON.stringify(friendRequestsMap));
+        savePersistentData('nivolock_sent_friend_reqs', JSON.stringify(sentFriendRequestsMap));
+
+        renderFriendsSection();
+        renderOnlineUsersList();
+        renderVoiceHistory();
+
+        if (!alreadyAccepted) {
+          playSoundEffect('connected');
+          triggerSystemNotification('🎉 تم قبول الصداقة - نيفولوك', `قَبِل ${packet.fromUsername} طلب صداقتك!`);
+          showNotificationToast(`🎉 قَبِل ${packet.fromUsername} طلب صداقتك! يمكنك الآن مراسلته والاتصال به.`);
+        }
+        return;
+      }
+
+      if (packet.type === 'PRIVATE_MSG') {
+        const senderUid = packet.fromUid;
+        if (!senderUid || !packet.msg) return;
+        if (!privateChats[senderUid]) privateChats[senderUid] = [];
+        if (!privateChats[senderUid].some(m => m.id === packet.msg.id)) {
+          privateChats[senderUid].push(packet.msg);
+          savePersistentData('nivolock_chats', JSON.stringify(privateChats));
+        } else {
+          return;
+        }
+        if (activeChatFriendUid === senderUid) {
+          renderPrivateChatMessages();
+          playSoundEffect('click');
+        } else {
+          playSoundEffect('notification');
+          triggerSystemNotification(`💬 رسالة من ${packet.fromUsername}`, 'لديك رسالة خاصة جديدة في نيفولوك');
+          showNotificationToast(`💬 رسالة خاصة جديدة من ${packet.fromUsername}`);
+        }
+        return;
+      }
+
+      if (packet.type === 'DELETE_PRIVATE_MSG') {
+        const senderUid = packet.fromUid;
+        if (privateChats[senderUid]) {
+          privateChats[senderUid] = privateChats[senderUid].filter(m => m.id !== packet.msgId);
+          savePersistentData('nivolock_chats', JSON.stringify(privateChats));
+          if (activeChatFriendUid === senderUid) renderPrivateChatMessages();
+        }
+        return;
+      }
+    }
+
+    function acceptFriendRequest(uid) {
+      const req = friendRequestsMap[uid] || onlinePeers[uid];
+      if (!req) return;
+      const friendName = req.username || 'صديق';
+      const friendGender = req.gender || 'male';
+
+      friendsMap[uid] = {
+        uid: uid,
+        username: friendName,
+        gender: friendGender,
+        addedAt: Date.now()
+      };
+      delete friendRequestsMap[uid];
+      delete sentFriendRequestsMap[uid];
+      savePersistentData('nivolock_friends', JSON.stringify(friendsMap));
+      savePersistentData('nivolock_friend_reqs', JSON.stringify(friendRequestsMap));
+      savePersistentData('nivolock_sent_friend_reqs', JSON.stringify(sentFriendRequestsMap));
+
+      sendReliableDirectPacket(uid, friendName, {
+        type: 'FRIEND_ACCEPTED',
+        fromUid: myUid,
+        fromUsername: myUsername,
+        fromGender: myGender || 'male',
+        ts: Date.now()
+      });
+
+      renderFriendsSection();
+      renderOnlineUsersList();
+      renderVoiceHistory();
+      playSoundEffect('connected');
+      showNotificationToast(`🎉 أصبحت أنت و ${friendName} أصدقاء الآن!`);
+    }
+
+    function rejectFriendRequest(uid) {
+      delete friendRequestsMap[uid];
+      savePersistentData('nivolock_friend_reqs', JSON.stringify(friendRequestsMap));
+      renderFriendsSection();
+      renderOnlineUsersList();
+      playSoundEffect('delete');
+      showNotificationToast('تم رفض طلب الصداقة.');
+    }
+
+    function renderFriendsSection() {
+      const reqsArray = Object.values(friendRequestsMap);
+      const reqCard = document.getElementById('friendRequestsCard');
+      const reqList = document.getElementById('friendRequestsList');
+      const reqCountLabel = document.getElementById('friendReqsCountLabel');
+      const friendsNavBadge = document.getElementById('friendsNavBadge');
+      const onlineNavBadge = document.getElementById('onlineNavBadge');
+
+      if (reqsArray.length > 0) {
+        if (reqCard) reqCard.style.display = 'block';
+        if (reqCountLabel) reqCountLabel.textContent = `${reqsArray.length} طلب جديد`;
+        if (friendsNavBadge) {
+          friendsNavBadge.style.display = 'flex';
+          friendsNavBadge.textContent = reqsArray.length;
+        }
+        if (onlineNavBadge) {
+          onlineNavBadge.style.display = 'flex';
+          onlineNavBadge.textContent = reqsArray.length;
+        }
+        if (reqList) {
+          reqList.innerHTML = reqsArray.map(r => `
+            <div class="user-item">
+              <div class="user-info">
+                <div class="avatar-circle ${r.gender === 'female' ? 'female' : ''}">${escapeHtml((r.username || 'م').charAt(0))}</div>
+                <div class="user-meta">
+                  <div class="user-name">${escapeHtml(r.username)}</div>
+                  <div class="user-sub">يرغب بإضافتك كصديق</div>
+                </div>
+              </div>
+              <div class="user-actions">
+                <button type="button" class="mini-btn success" onclick="acceptFriendRequest('${r.uid}')" aria-label="قبول صداقة ${escapeHtml(r.username)}">✅ قبول</button>
+                <button type="button" class="mini-btn danger" onclick="rejectFriendRequest('${r.uid}')" aria-label="رفض صداقة ${escapeHtml(r.username)}">❌ رفض</button>
+              </div>
+            </div>
+          `).join('');
+        }
+      } else {
+        if (reqCard) reqCard.style.display = 'none';
+        if (friendsNavBadge) friendsNavBadge.style.display = 'none';
+        if (onlineNavBadge) onlineNavBadge.style.display = 'none';
+      }
+
+      const friendsArray = Object.values(friendsMap);
+      const countLabel = document.getElementById('friendsCountLabel');
+      if (countLabel) countLabel.textContent = `${friendsArray.length} صديق`;
+      const friendsContainer = document.getElementById('friendsListContainer');
+      if (!friendsContainer) return;
+
+      if (friendsArray.length === 0) {
+        friendsContainer.innerHTML = `<div class="empty-state">لم تقم بإضافة أصدقاء بعد. أرسل طلبات صداقة من قسم المتواجدين أو أثناء المكالمات العشوائية.</div>`;
+        return;
+      }
+
+      friendsContainer.innerHTML = friendsArray.map(f => {
+        const isOnline = Boolean(onlinePeers[f.uid]);
+        return `
+          <div class="user-item">
+            <div class="user-info">
+              <div class="avatar-circle ${f.gender === 'female' ? 'female' : ''}">${escapeHtml((f.username || 'ص').charAt(0))}</div>
+              <div class="user-meta">
+                <div class="user-name">${escapeHtml(f.username)}</div>
+                <div class="user-sub">
+                  <span style="color:${isOnline ? 'var(--success)' : 'var(--text-secondary)'};">
+                    ${isOnline ? '🟢 متصل الآن' : '⚪ غير متصل حالياً'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="user-actions">
+              <button type="button" class="mini-btn primary" onclick="openPrivateChat('${f.uid}')" aria-label="فتح المحادثة الخاصة مع ${escapeHtml(f.username)}">
+                💬 مراسلة
+              </button>
+              <button type="button" class="mini-btn success" onclick="callFriendDirectly('${f.uid}')" aria-label="اتصال صوتي مباشر مع ${escapeHtml(f.username)}">
+                📞 اتصال
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openFriendChatFromOnline(uid) {
+      switchTab('tab-friends', document.getElementById('nav-friends'));
+      openPrivateChat(uid);
+    }
+
+    function openPrivateChat(friendUid) {
+      const friend = friendsMap[friendUid];
+      if (!friend) return;
+      activeChatFriendUid = friendUid;
+      document.getElementById('chatPartnerName').textContent = friend.username;
+      const isOnline = Boolean(onlinePeers[friendUid]);
+      document.getElementById('chatPartnerStatus').textContent = isOnline ? '🟢 متصل الآن' : '⚪ صديق';
+      document.getElementById('privateChatBox').classList.add('active');
+      renderPrivateChatMessages();
+      announceToScreenReader(`تم فتح المحادثة الخاصة مع ${friend.username}`);
+    }
+
+    function closePrivateChat() {
+      activeChatFriendUid = null;
+      document.getElementById('privateChatBox').classList.remove('active');
+    }
+
+    function renderPrivateChatMessages() {
+      if (!activeChatFriendUid) return;
+      const list = privateChats[activeChatFriendUid] || [];
+      const container = document.getElementById('privateChatMessages');
+
+      if (list.length === 0) {
+        container.innerHTML = `<div class="empty-state">ابدأ المحادثة مع صديقك بإرسال رسالة نصية أو مقطع صوتي.</div>`;
+        return;
+      }
+
+      container.innerHTML = list.map(m => {
+        const isMine = m.senderUid === myUid;
+        return `
+          <div class="msg-bubble ${isMine ? 'mine' : 'theirs'}">
+            ${m.audioData
+              ? `<audio controls src="${m.audioData}" style="max-width:210px; height:36px;"></audio>`
+              : `<div>${escapeHtml(m.text)}</div>`
+            }
+            <div class="msg-meta">
+              <span>${new Date(m.ts).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}</span>
+              ${isMine
+                ? `<button type="button" onclick="deletePrivateMessage('${m.id}')" style="background:none; border:none; color:#FCA5A5; cursor:pointer; font-size:0.74rem;" aria-label="حذف هذه الرسالة">🗑️ حذف</button>`
+                : ''
+              }
+            </div>
+          </div>
+        `;
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendPrivateTextMessage() {
+      if (!activeChatFriendUid) return;
+      const friend = friendsMap[activeChatFriendUid];
+      const input = document.getElementById('privateChatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const msgObj = {
+        id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        senderUid: myUid,
+        text: text,
+        ts: Date.now()
+      };
+
+      if (!privateChats[activeChatFriendUid]) privateChats[activeChatFriendUid] = [];
+      privateChats[activeChatFriendUid].push(msgObj);
+      savePersistentData('nivolock_chats', JSON.stringify(privateChats));
+      input.value = '';
+      renderPrivateChatMessages();
+      playSoundEffect('click');
+
+      sendReliableDirectPacket(activeChatFriendUid, friend ? friend.username : '', {
+        type: 'PRIVATE_MSG',
+        fromUid: myUid,
+        fromUsername: myUsername,
+        msg: msgObj
+      });
+    }
+
+    async function toggleVoiceNoteRecording() {
+      if (!activeChatFriendUid) return;
+      const btn = document.getElementById('recordVoiceNoteBtn');
+
+      if (!isRecordingVoiceNote) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          recordedAudioChunks = [];
+          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedAudioChunks.push(e.data);
+          };
+          mediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(recordedAudioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              sendPrivateVoiceNote(reader.result);
+            };
+            reader.readAsDataURL(blob);
+          };
+          mediaRecorder.start();
+          isRecordingVoiceNote = true;
+          btn.setAttribute('aria-pressed', 'true');
+          btn.textContent = '⏹️';
+          showNotificationToast('🎙️ جاري تسجيل الرسالة الصوتية... اضغط مجدداً للإرسال.');
+        } catch (e) {
+          showNotificationToast('⚠️ يرجى السماح بصلاحية الميكروفون لتسجيل الرسالة الصوتية.');
+        }
+      } else {
+        isRecordingVoiceNote = false;
+        btn.setAttribute('aria-pressed', 'false');
+        btn.textContent = '🎙️';
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+      }
+    }
+
+    function sendPrivateVoiceNote(base64Audio) {
+      if (!activeChatFriendUid || !base64Audio) return;
+      const friend = friendsMap[activeChatFriendUid];
+      const msgObj = {
+        id: 'vmsg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        senderUid: myUid,
+        audioData: base64Audio,
+        ts: Date.now()
+      };
+      if (!privateChats[activeChatFriendUid]) privateChats[activeChatFriendUid] = [];
+      privateChats[activeChatFriendUid].push(msgObj);
+      savePersistentData('nivolock_chats', JSON.stringify(privateChats));
+      renderPrivateChatMessages();
+      playSoundEffect('notification');
+
+      sendReliableDirectPacket(activeChatFriendUid, friend ? friend.username : '', {
+        type: 'PRIVATE_MSG',
+        fromUid: myUid,
+        fromUsername: myUsername,
+        msg: msgObj
+      });
+    }
+
+    function deletePrivateMessage(msgId) {
+      if (!activeChatFriendUid) return;
+      const friend = friendsMap[activeChatFriendUid];
+      privateChats[activeChatFriendUid] = (privateChats[activeChatFriendUid] || []).filter(m => m.id !== msgId);
+      savePersistentData('nivolock_chats', JSON.stringify(privateChats));
+      renderPrivateChatMessages();
+      playSoundEffect('delete');
+
+      sendReliableDirectPacket(activeChatFriendUid, friend ? friend.username : '', {
+        type: 'DELETE_PRIVATE_MSG',
+        fromUid: myUid,
+        msgId: msgId
+      });
+    }
+
+    function callActiveChatFriend() {
+      if (!activeChatFriendUid) return;
+      callFriendDirectly(activeChatFriendUid);
+    }
+
+    function callFriendDirectly(friendUid) {
+      const friend = friendsMap[friendUid];
+      if (!friend) {
+        showNotificationToast('⚠️ لا يمكن الاتصال إلا بالأصدقاء المضافين لديك.');
+        return;
+      }
+      const onlineInfo = onlinePeers[friendUid];
+      if (!onlineInfo || !onlineInfo.peerId) {
+        showNotificationToast('⚠️ هذا الصديق غير متصل بالخادم في هذه اللحظة.');
+        return;
+      }
+      showNotificationToast(`📞 جاري الاتصال بالصديق ${friend.username}...`);
+      initiateVoiceCallToPeer(onlineInfo.peerId, {
+        uid: friend.uid,
+        username: friend.username,
+        gender: friend.gender,
+        callType: 'friend'
+      });
+    }
+
+    // 13. PUBLIC POSTS FEED & OFFICIAL ADMIN ANNOUNCEMENTS (FIXED PUBLISHING & UNLIMITED TEXT)
+    function normalizePostObject(p) {
+      if (!p || typeof p !== 'object') return null;
+      return {
+        id: String(p.id || ('post_' + Date.now())),
+        authorUid: String(p.authorUid || ''),
+        authorName: String(p.authorName || 'مستخدم'),
+        authorGender: p.authorGender === 'female' ? 'female' : 'male',
+        content: String(p.content || ''),
+        likes: Array.isArray(p.likes) ? p.likes : [],
+        comments: Array.isArray(p.comments) ? p.comments : [],
+        ts: Number(p.ts) || Date.now(),
+        editedAt: p.editedAt || null
+      };
+    }
+
+    function switchFeedSubTab(subTabName) {
+      currentFeedSubTab = subTabName;
+      const btnPublic = document.getElementById('subTabBtnPublic');
+      const btnAnn = document.getElementById('subTabBtnAnnouncements');
+      const viewPublic = document.getElementById('feedSubViewPublic');
+      const viewAnn = document.getElementById('feedSubViewAnnouncements');
+
+      if (subTabName === 'announcements') {
+        btnPublic.classList.remove('active');
+        btnPublic.setAttribute('aria-selected', 'false');
+        btnAnn.classList.add('active');
+        btnAnn.setAttribute('aria-selected', 'true');
+        viewPublic.style.display = 'none';
+        viewAnn.style.display = 'block';
+        markAllAnnouncementsAsSeen();
+        announceToScreenReader('تبويبة إعلانات الإدارة الرسمية');
+      } else {
+        btnAnn.classList.remove('active');
+        btnAnn.setAttribute('aria-selected', 'false');
+        btnPublic.classList.add('active');
+        btnPublic.setAttribute('aria-selected', 'true');
+        viewAnn.style.display = 'none';
+        viewPublic.style.display = 'block';
+        announceToScreenReader('تبويبة المنشورات العامة');
+      }
+      playSoundEffect('click');
+    }
+
+    function upsertPostLocally(rawPost) {
+      const postObj = normalizePostObject(rawPost);
+      if (!postObj || !postObj.id) return;
+      const idx = publicPosts.findIndex(p => p && p.id === postObj.id);
+      if (idx === -1) {
+        publicPosts.unshift(postObj);
+      } else {
+        publicPosts[idx] = postObj;
+      }
+      publicPosts.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      if (publicPosts.length > 80) publicPosts = publicPosts.slice(0, 80);
+      savePersistentData('nivolock_posts', JSON.stringify(publicPosts));
+      try { renderPublicPostsFeed(); } catch (e) {}
+      try { renderMyOwnPosts(); } catch (e) {}
+      try { if (isMasterAdmin) renderAdminDashboard(); } catch (e) {}
+    }
+
+    function mergePostsSnapshot(incomingPosts) {
+      if (!Array.isArray(incomingPosts)) return;
+      let changed = false;
+      incomingPosts.forEach(rawP => {
+        const p = normalizePostObject(rawP);
+        if (!p || !p.id) return;
+        const idx = publicPosts.findIndex(existing => existing && existing.id === p.id);
+        if (idx === -1) {
+          publicPosts.push(p);
+          changed = true;
+        } else if ((p.editedAt || 0) > (publicPosts[idx].editedAt || 0) || (p.comments.length > (publicPosts[idx].comments || []).length)) {
+          publicPosts[idx] = p;
+          changed = true;
+        }
+      });
+      if (changed) {
+        publicPosts.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        if (publicPosts.length > 80) publicPosts = publicPosts.slice(0, 80);
+        savePersistentData('nivolock_posts', JSON.stringify(publicPosts));
+        try { renderPublicPostsFeed(); } catch (e) {}
+        try { renderMyOwnPosts(); } catch (e) {}
+        try { if (isMasterAdmin) renderAdminDashboard(); } catch (e) {}
+      }
+    }
+
+    function savePostsSnapshotToServer() {
+      publishServerPacket(`${TOPIC_PREFIX}/posts_snapshot`, {
+        posts: publicPosts.slice(0, 40),
+        ts: Date.now()
+      }, true);
+    }
+
+    function removePostLocally(postId) {
+      const beforeLen = publicPosts.length;
+      publicPosts = publicPosts.filter(p => p && p.id !== postId);
+      if (publicPosts.length !== beforeLen) {
+        savePersistentData('nivolock_posts', JSON.stringify(publicPosts));
+        try { renderPublicPostsFeed(); } catch (e) {}
+        try { renderMyOwnPosts(); } catch (e) {}
+        try { if (isMasterAdmin) renderAdminDashboard(); } catch (e) {}
+      }
+    }
+
+    function publishPublicPost() {
+      const input = document.getElementById('postInput');
+      if (!input) return;
+      const content = input.value.trim();
+      if (!content) {
+        showNotificationToast('⚠️ يرجى كتابة محتوى المنشور أولاً.');
+        return;
+      }
+
+      const authorUidToUse = myUid || ('nv_' + computeAccountHash((myUsername || 'user').toLowerCase()));
+      const authorNameToUse = myUsername || (isMasterAdmin ? 'الإدارة العامة' : 'مستخدم');
+
+      const postObj = normalizePostObject({
+        id: 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        authorUid: authorUidToUse,
+        authorName: authorNameToUse,
+        authorGender: myGender || 'male',
+        content: content,
+        likes: [],
+        comments: [],
+        ts: Date.now()
+      });
+
+      upsertPostLocally(postObj);
+      input.value = '';
+      playSoundEffect('notification');
+      showNotificationToast('✅ تم نشر منشورك في المجتمع العام بنجاح.');
+
+      // Broadcast live & update single retained snapshot
+      publishServerPacket(`${TOPIC_PREFIX}/posts`, {
+        action: 'CREATE',
+        post: postObj
+      });
+      savePostsSnapshotToServer();
+    }
+
+    function requestFullPostsSyncFromServer() {
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.subscribe([
+          `${TOPIC_PREFIX}/posts_snapshot`,
+          `${TOPIC_PREFIX}/announcements_snapshot`
+        ], { qos: 1 });
+        publishServerPacket(`${TOPIC_PREFIX}/posts`, { action: 'REQ_SYNC', senderUid: myUid });
+        showNotificationToast('🔄 تم تحديث ومزامنة المنشورات والإعلانات من الخادم.');
+      } else {
+        showNotificationToast('⚠️ جاري الاتصال بالخادم، يرجى المحاولة بعد لحظة.');
+      }
+    }
+
+    function handlePublicPostEvent(data) {
+      if (!data || !data.action) return;
+
+      if (data.action === 'REQ_SYNC') {
+        if (data.senderUid !== myUid && publicPosts.length > 0) {
+          publishServerPacket(`${TOPIC_PREFIX}/posts`, {
+            action: 'SYNC_RESPONSE',
+            posts: publicPosts.slice(0, 35)
+          });
+        }
+        return;
+      }
+
+      if (data.action === 'SYNC_RESPONSE' && Array.isArray(data.posts)) {
+        mergePostsSnapshot(data.posts);
+        return;
+      }
+
+      if ((data.action === 'CREATE' || data.action === 'EDIT') && data.post) {
+        upsertPostLocally(data.post);
+      } else if (data.action === 'LIKE' && data.postId) {
+        const post = publicPosts.find(p => p && p.id === data.postId);
+        if (post) {
+          if (!Array.isArray(post.likes)) post.likes = [];
+          if (!post.likes.includes(data.userUid)) post.likes.push(data.userUid);
+          else post.likes = post.likes.filter(u => u !== data.userUid);
+          upsertPostLocally(post);
+        }
+      } else if (data.action === 'COMMENT' && data.postId && data.comment) {
+        const post = publicPosts.find(p => p && p.id === data.postId);
+        if (post) {
+          if (!Array.isArray(post.comments)) post.comments = [];
+          if (!post.comments.some(c => c.id === data.comment.id)) {
+            post.comments.push(data.comment);
+            upsertPostLocally(post);
+          }
+        }
+      } else if (data.action === 'DELETE' && data.postId) {
+        removePostLocally(data.postId);
+      }
+    }
+
+    function toggleLikePost(postId) {
+      const post = publicPosts.find(p => p && p.id === postId);
+      if (!post) return;
+      if (!Array.isArray(post.likes)) post.likes = [];
+      if (!post.likes.includes(myUid)) post.likes.push(myUid);
+      else post.likes = post.likes.filter(u => u !== myUid);
+
+      upsertPostLocally(post);
+      playSoundEffect('click');
+
+      publishServerPacket(`${TOPIC_PREFIX}/posts`, {
+        action: 'LIKE',
+        postId: postId,
+        userUid: myUid
+      });
+      savePostsSnapshotToServer();
+    }
+
+    function submitPostComment(postId) {
+      const input = document.getElementById('commentInput_' + postId);
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+
+      const commentObj = {
+        id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+        authorUid: myUid,
+        authorName: myUsername,
+        text: text,
+        ts: Date.now()
+      };
+
+      const post = publicPosts.find(p => p && p.id === postId);
+      if (!post) return;
+      if (!Array.isArray(post.comments)) post.comments = [];
+      post.comments.push(commentObj);
+      input.value = '';
+      upsertPostLocally(post);
+      playSoundEffect('click');
+
+      publishServerPacket(`${TOPIC_PREFIX}/posts`, {
+        action: 'COMMENT',
+        postId: postId,
+        comment: commentObj
+      });
+      savePostsSnapshotToServer();
+    }
+
+    function deletePublicPost(postId) {
+      const post = publicPosts.find(p => p && p.id === postId);
+      if (!post) return;
+      if (post.authorUid !== myUid && !isMasterAdmin) return;
+
+      removePostLocally(postId);
+      playSoundEffect('delete');
+      showNotificationToast('🗑️ تم حذف المنشور نهائياً من الخادم.');
+
+      publishServerPacket(`${TOPIC_PREFIX}/posts`, {
+        action: 'DELETE',
+        postId: postId
+      });
+      savePostsSnapshotToServer();
+    }
+
+    // Unlimited Content Editing (For Posts & Admin Announcements)
+    function openEditPostModal(postId) {
+      const post = publicPosts.find(p => p && p.id === postId);
+      if (!post) return;
+      if (post.authorUid !== myUid && !isMasterAdmin) return;
+
+      currentEditTarget = { type: 'post', id: postId };
+      document.getElementById('editModalTitle').textContent = '✏️ تعديل المنشور';
+      document.getElementById('editModalTextarea').value = post.content || '';
+      document.getElementById('editContentModal').classList.add('active');
+    }
+
+    function openEditAnnouncementModal(annId) {
+      if (!isMasterAdmin) return;
+      const ann = officialAnnouncements.find(a => a && a.id === annId);
+      if (!ann) return;
+
+      currentEditTarget = { type: 'announcement', id: annId };
+      document.getElementById('editModalTitle').textContent = '✏️ تعديل الإعلان الإداري الرسمي';
+      document.getElementById('editModalTextarea').value = ann.content || '';
+      document.getElementById('editContentModal').classList.add('active');
+    }
+
+    function closeEditContentModal() {
+      currentEditTarget = null;
+      document.getElementById('editContentModal').classList.remove('active');
+    }
+
+    function saveEditedContent() {
+      if (!currentEditTarget) return;
+      const newText = document.getElementById('editModalTextarea').value.trim();
+      if (!newText) {
+        showNotificationToast('⚠️ لا يمكن حفظ نص فارغ.');
+        return;
+      }
+
+      if (currentEditTarget.type === 'post') {
+        const post = publicPosts.find(p => p && p.id === currentEditTarget.id);
+        if (post) {
+          post.content = newText;
+          post.editedAt = Date.now();
+          upsertPostLocally(post);
+          publishServerPacket(`${TOPIC_PREFIX}/posts`, {
+            action: 'EDIT',
+            post: post
+          });
+          savePostsSnapshotToServer();
+          showNotificationToast('✅ تم حفظ تعديلات المنشور بنجاح.');
+        }
+      } else if (currentEditTarget.type === 'announcement' && isMasterAdmin) {
+        const ann = officialAnnouncements.find(a => a && a.id === currentEditTarget.id);
+        if (ann) {
+          ann.content = newText;
+          ann.editedAt = Date.now();
+          upsertAnnouncementLocally(ann, false);
+          publishServerPacket(`${TOPIC_PREFIX}/moderation`, {
+            command: 'ADMIN_ANNOUNCEMENT_EDIT',
+            announcement: ann
+          });
+          saveAnnouncementsSnapshotToServer();
+          showNotificationToast('✅ تم تحديث الإعلان الإداري وتعميمه على الجميع.');
+        }
+      }
+
+      playSoundEffect('notification');
+      closeEditContentModal();
+    }
+
+    function renderPublicPostsFeed() {
+      const container = document.getElementById('publicPostsContainer');
+      if (!container) return;
+      if (publicPosts.length === 0) {
+        container.innerHTML = `<div class="empty-state">لا توجد منشورات عامة حالياً. كن أول من ينشر!</div>`;
+        return;
+      }
+
+      container.innerHTML = publicPosts.map(rawP => {
+        const p = normalizePostObject(rawP);
+        if (!p) return '';
+        const canModify = (p.authorUid === myUid || isMasterAdmin);
+        const likedByMe = p.likes.includes(myUid);
+        const timeStr = new Date(p.ts).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' });
+
+        return `
+          <article class="post-card">
+            <div class="post-header">
+              <div class="user-info">
+                <div class="avatar-circle ${p.authorGender === 'female' ? 'female' : ''}" style="width:36px; height:36px; font-size:0.9rem;">
+                  ${escapeHtml((p.authorName || 'م').charAt(0))}
+                </div>
+                <div>
+                  <div class="user-name" style="font-size:0.9rem;">${escapeHtml(p.authorName)}</div>
+                  <div class="user-sub">${timeStr} ${p.editedAt ? '• (معدّل)' : ''}</div>
+                </div>
+              </div>
+              ${canModify
+                ? `<div style="display:flex; gap:6px;">
+                     <button type="button" class="mini-btn warning" onclick="openEditPostModal('${p.id}')" aria-label="تعديل منشور ${escapeHtml(p.authorName)}">✏️ تعديل</button>
+                     <button type="button" class="mini-btn danger" onclick="deletePublicPost('${p.id}')" aria-label="حذف منشور ${escapeHtml(p.authorName)}">🗑️ حذف</button>
+                   </div>`
+                : ''
+              }
+            </div>
+            <div class="post-content">${escapeHtml(p.content)}</div>
+            <div class="post-footer">
+              <button type="button" class="mini-btn ${likedByMe ? 'primary' : ''}" onclick="toggleLikePost('${p.id}')" aria-pressed="${likedByMe}" aria-label="إعجاب بالمنشور، عدد الإعجابات ${p.likes.length}">
+                ❤️ إعجاب (${p.likes.length})
+              </button>
+              <span style="font-size:0.8rem; color:var(--text-secondary);">💬 التعليقات (${p.comments.length})</span>
+            </div>
+            <div class="comments-box">
+              ${p.comments.map(c => `
+                <div class="comment-item">
+                  <strong style="color:var(--accent-primary);">${escapeHtml(c.authorName || 'مستخدم')}:</strong> ${escapeHtml(c.text || '')}
+                </div>
+              `).join('')}
+              <div style="display:flex; gap:6px; margin-top:8px;">
+                <input id="commentInput_${p.id}" type="text" class="nv-input" placeholder="اكتب تعليقاً..." style="padding:8px 12px; font-size:0.84rem;" onkeydown="if(event.key==='Enter') submitPostComment('${p.id}')" />
+                <button type="button" class="mini-btn primary" onclick="submitPostComment('${p.id}')" aria-label="إرسال التعليق">إرسال</button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderMyOwnPosts() {
+      const container = document.getElementById('myOwnPostsList');
+      if (!container) return;
+      const mine = publicPosts.filter(p => p && p.authorUid === myUid);
+      if (mine.length === 0) {
+        container.innerHTML = `<div class="empty-state">لم تقم بنشر أي منشورات بعد.</div>`;
+        return;
+      }
+      container.innerHTML = mine.map(p => `
+        <div class="user-item" style="margin-bottom:8px;">
+          <div style="min-width:0; flex:1;">
+            <div style="font-size:0.88rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(p.content)}</div>
+            <div style="font-size:0.74rem; color:var(--text-secondary);">❤️ ${(p.likes || []).length} • 💬 ${(p.comments || []).length}</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="mini-btn warning" onclick="openEditPostModal('${p.id}')">✏️ تعديل</button>
+            <button type="button" class="mini-btn danger" onclick="deletePublicPost('${p.id}')">🗑️ حذف</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 14. OFFICIAL ADMIN ANNOUNCEMENTS SYSTEM (RELIABLE SNAPSHOT + MODERATION BROADCAST)
+    function upsertAnnouncementLocally(annObj, notifyIfUnseen = true) {
+      if (!annObj || !annObj.id) return;
+      const idx = officialAnnouncements.findIndex(a => a && a.id === annObj.id);
+      if (idx === -1) {
+        officialAnnouncements.unshift(annObj);
+      } else {
+        officialAnnouncements[idx] = annObj;
+      }
+      officialAnnouncements.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      if (officialAnnouncements.length > 50) officialAnnouncements = officialAnnouncements.slice(0, 50);
+      savePersistentData('nivolock_announcements', JSON.stringify(officialAnnouncements));
+
+      try { renderOfficialAnnouncements(); } catch (e) {}
+      try { updateAnnouncementsUnreadBadge(); } catch (e) {}
+
+      const isAlreadySeen = seenAnnouncementIds.includes(annObj.id);
+      if (notifyIfUnseen && !isAlreadySeen && myUid) {
+        playSoundEffect('announcement');
+        triggerSystemNotification(
+          '📢 إعلان إداري جديد - نيفولوك',
+          String(annObj.content || '').slice(0, 180)
+        );
+        showAdminAnnouncementPopupModal(annObj);
+      }
+    }
+
+    function mergeAnnouncementsSnapshot(incomingList) {
+      if (!Array.isArray(incomingList)) return;
+      let newestUnseen = null;
+      incomingList.forEach(ann => {
+        if (!ann || !ann.id) return;
+        const idx = officialAnnouncements.findIndex(a => a && a.id === ann.id);
+        if (idx === -1) {
+          officialAnnouncements.push(ann);
+          if (!seenAnnouncementIds.includes(ann.id)) {
+            if (!newestUnseen || (ann.ts || 0) > (newestUnseen.ts || 0)) {
+              newestUnseen = ann;
+            }
+          }
+        } else {
+          officialAnnouncements[idx] = ann;
+        }
+      });
+      officialAnnouncements.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      savePersistentData('nivolock_announcements', JSON.stringify(officialAnnouncements));
+      try { renderOfficialAnnouncements(); } catch (e) {}
+      try { updateAnnouncementsUnreadBadge(); } catch (e) {}
+
+      if (newestUnseen && myUid) {
+        playSoundEffect('announcement');
+        triggerSystemNotification('📢 إعلان إداري جديد - نيفولوك', String(newestUnseen.content || '').slice(0, 180));
+        showAdminAnnouncementPopupModal(newestUnseen);
+      }
+    }
+
+    function saveAnnouncementsSnapshotToServer() {
+      publishServerPacket(`${TOPIC_PREFIX}/announcements_snapshot`, {
+        announcements: officialAnnouncements.slice(0, 30),
+        ts: Date.now()
+      }, true);
+    }
+
+    function removeAnnouncementLocally(annId) {
+      const before = officialAnnouncements.length;
+      officialAnnouncements = officialAnnouncements.filter(a => a && a.id !== annId);
+      if (officialAnnouncements.length !== before) {
+        savePersistentData('nivolock_announcements', JSON.stringify(officialAnnouncements));
+        try { renderOfficialAnnouncements(); } catch (e) {}
+        try { updateAnnouncementsUnreadBadge(); } catch (e) {}
+      }
+    }
+
+    function createAndPublishOfficialAnnouncement(rawContent) {
+      if (verifyMasterAdminCipher(myUsername, myPassword)) {
+        isMasterAdmin = true;
+      }
+      if (!isMasterAdmin) {
+        showNotificationToast('⚠️ هذه الصلاحية مخصصة للإدارة العامة فقط.');
+        return;
+      }
+      const content = (rawContent || '').trim();
+      if (!content) {
+        showNotificationToast('⚠️ يرجى كتابة نص الإعلان الإداري أولاً.');
+        return;
+      }
+
+      const annObj = {
+        id: 'ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        authorName: 'الإدارة العامة - نيفولوك',
+        content: content,
+        ts: Date.now()
+      };
+
+      if (!seenAnnouncementIds.includes(annObj.id)) {
+        seenAnnouncementIds.push(annObj.id);
+        savePersistentData('nivolock_seen_announcements', JSON.stringify(seenAnnouncementIds));
+      }
+
+      upsertAnnouncementLocally(annObj, false);
+
+      // 1. Broadcast immediately on the core moderation channel
+      publishServerPacket(`${TOPIC_PREFIX}/moderation`, {
+        command: 'ADMIN_ANNOUNCEMENT',
+        announcement: annObj,
+        message: content
+      });
+      // 2. Save to single retained snapshot so offline users get it immediately upon opening the app
+      saveAnnouncementsSnapshotToServer();
+
+      playSoundEffect('announcement');
+      showNotificationToast('📢 تم نشر الإعلان الإداري وتعميمه بإشعار فوري لكافة المستخدمين.');
+    }
+
+    function publishAdminAnnouncementFromFeed() {
+      const input = document.getElementById('feedAdminAnnInput');
+      if (!input) return;
+      createAndPublishOfficialAnnouncement(input.value);
+      input.value = '';
+    }
+
+    function deleteAdminAnnouncement(annId) {
+      if (!isMasterAdmin) return;
+      removeAnnouncementLocally(annId);
+      publishServerPacket(`${TOPIC_PREFIX}/moderation`, {
+        command: 'ADMIN_ANNOUNCEMENT_DELETE',
+        annId: annId
+      });
+      saveAnnouncementsSnapshotToServer();
+      playSoundEffect('delete');
+      showNotificationToast('🗑️ تم حذف الإعلان الإداري من النظام.');
+    }
+
+    function renderOfficialAnnouncements() {
+      const container = document.getElementById('officialAnnouncementsContainer');
+      const countBadge = document.getElementById('announcementsCountBadge');
+      if (countBadge) countBadge.textContent = `${officialAnnouncements.length} إعلان`;
+
+      if (!container) return;
+      if (officialAnnouncements.length === 0) {
+        container.innerHTML = `<div class="empty-state">لا توجد إعلانات إدارية منشورة حتى الآن.</div>`;
+        return;
+      }
+
+      container.innerHTML = officialAnnouncements.map(ann => {
+        if (!ann) return '';
+        const dateStr = new Date(ann.ts || Date.now()).toLocaleString('ar-DZ', {
+          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <article class="post-card" style="border-color:rgba(251, 191, 36, 0.4); background:rgba(251, 191, 36, 0.05);">
+            <div class="post-header">
+              <div class="user-info">
+                <div class="brand-logo admin-badge" style="width:38px; height:38px; font-size:1rem;">👑</div>
+                <div>
+                  <div class="user-name" style="color:var(--admin-gold); font-size:0.94rem;">
+                    ${escapeHtml(ann.authorName || 'الإدارة العامة - نيفولوك')} ✔️
+                  </div>
+                  <div class="user-sub">${dateStr} ${ann.editedAt ? '• (محدّث)' : ''}</div>
+                </div>
+              </div>
+              ${isMasterAdmin
+                ? `<div style="display:flex; gap:6px;">
+                     <button type="button" class="mini-btn warning" onclick="openEditAnnouncementModal('${ann.id}')">✏️ تعديل</button>
+                     <button type="button" class="mini-btn danger" onclick="deleteAdminAnnouncement('${ann.id}')">🗑️ حذف</button>
+                   </div>`
+                : ''
+              }
+            </div>
+            <div class="post-content" style="font-weight:600; color:#F8FAFC;">${escapeHtml(ann.content)}</div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function updateAnnouncementsUnreadBadge() {
+      const unseenList = officialAnnouncements.filter(a => a && !seenAnnouncementIds.includes(a.id));
+      const count = unseenList.length;
+      const subTabBadge = document.getElementById('annUnreadBadge');
+      const mainNavBadge = document.getElementById('feedNavBadge');
+
+      if (count > 0) {
+        if (subTabBadge) {
+          subTabBadge.style.display = 'inline-block';
+          subTabBadge.textContent = count;
+        }
+        if (mainNavBadge) {
+          mainNavBadge.style.display = 'flex';
+          mainNavBadge.textContent = count;
+        }
+      } else {
+        if (subTabBadge) subTabBadge.style.display = 'none';
+        if (mainNavBadge) mainNavBadge.style.display = 'none';
+      }
+    }
+
+    function markAllAnnouncementsAsSeen() {
+      let changed = false;
+      officialAnnouncements.forEach(a => {
+        if (a && a.id && !seenAnnouncementIds.includes(a.id)) {
+          seenAnnouncementIds.push(a.id);
+          changed = true;
+        }
+      });
+      if (changed) {
+        savePersistentData('nivolock_seen_announcements', JSON.stringify(seenAnnouncementIds));
+      }
+      updateAnnouncementsUnreadBadge();
+    }
+
+    function showAdminAnnouncementPopupModal(annObj) {
+      if (!annObj) return;
+      const modal = document.getElementById('adminAnnouncementModal');
+      const timeEl = document.getElementById('adminAnnModalTime');
+      const bodyEl = document.getElementById('adminAnnModalBody');
+
+      if (timeEl) {
+        timeEl.textContent = new Date(annObj.ts || Date.now()).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' });
+      }
+      if (bodyEl) {
+        bodyEl.textContent = annObj.content || '';
+      }
+      if (modal) {
+        modal.classList.add('active');
+      }
+      if (annObj.id && !seenAnnouncementIds.includes(annObj.id)) {
+        seenAnnouncementIds.push(annObj.id);
+        savePersistentData('nivolock_seen_announcements', JSON.stringify(seenAnnouncementIds));
+        updateAnnouncementsUnreadBadge();
+      }
+      announceToScreenReader(`إعلان إداري جديد من إدارة نيفولوك: ${annObj.content}`);
+    }
+
+    function closeAdminAnnouncementModal() {
+      document.getElementById('adminAnnouncementModal').classList.remove('active');
+    }
+
+    function openAnnouncementsTabFromModal() {
+      closeAdminAnnouncementModal();
+      switchTab('tab-feed', document.getElementById('nav-feed'));
+      switchFeedSubTab('announcements');
+    }
+
+    // 15. VOICE CALL HISTORY & ACCOUNT DELETION
+    function logVoiceCallHistory(partner) {
+      voiceHistory.unshift({
+        uid: partner.uid,
+        username: partner.username,
+        gender: partner.gender,
+        ts: Date.now()
+      });
+      if (voiceHistory.length > 40) voiceHistory.pop();
+      savePersistentData('nivolock_voice_history', JSON.stringify(voiceHistory));
+      renderVoiceHistory();
+    }
+
+    function renderVoiceHistory() {
+      const container = document.getElementById('voiceHistoryList');
+      if (!container) return;
+      if (voiceHistory.length === 0) {
+        container.innerHTML = `<div class="empty-state">سجل المكالمات فارغ حالياً.</div>`;
+        return;
+      }
+      container.innerHTML = voiceHistory.map(h => `
+        <div class="user-item">
+          <div class="user-info">
+            <div class="avatar-circle ${h.gender === 'female' ? 'female' : ''}">${escapeHtml((h.username || 'م').charAt(0))}</div>
+            <div class="user-meta">
+              <div class="user-name">${escapeHtml(h.username)}</div>
+              <div class="user-sub">${new Date(h.ts).toLocaleString('ar-DZ')}</div>
+            </div>
+          </div>
+          <div class="user-actions">
+            ${friendsMap[h.uid]
+              ? `<span style="font-size:0.78rem; color:var(--success); font-weight:700;">صديق ✓</span>`
+              : `<button type="button" class="mini-btn primary" onclick="sendFriendRequest('${h.uid}', '${escapeHtml(h.username)}', '${h.gender}')">➕ طلب صداقة</button>`
+            }
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function clearVoiceCallHistory() {
+      voiceHistory = [];
+      savePersistentData('nivolock_voice_history', '[]');
+      renderVoiceHistory();
+      playSoundEffect('delete');
+      showNotificationToast('🗑️ تم مسح سجل المكالمات الصوتية.');
+    }
+
+    function permanentlyDeleteMyAccount() {
+      const confirmDelete = confirm('تحذير: هل أنت متأكد من إغلاق وحذف حسابك الشخصي نهائياً وجميع بياناتك ومنشوراتك؟ لا يمكن التراجع عن هذا الإجراء.');
+      if (!confirmDelete) return;
+
+      if (mqttClient && mqttClient.connected && myUsername) {
+        const normalizedUser = myUsername.trim().toLowerCase();
+        const accountTopic = `${TOPIC_PREFIX}/accounts/${encodeURIComponent(normalizedUser)}`;
+        mqttClient.publish(accountTopic, 'DELETED', { qos: 1, retain: true });
+      }
+
+      const keysToClear = [
+        'nivolock_uid', 'nivolock_username', 'nivolock_password',
+        'nivolock_gender_lock', 'nivolock_friends', 'nivolock_friend_reqs',
+        'nivolock_sent_friend_reqs', 'nivolock_chats', 'nivolock_voice_history',
+        'nivolock_session_active', 'nivolock_logged_out'
+      ];
+      keysToClear.forEach(k => removePersistentData(k));
+
+      location.reload();
+    }
+
+    // 16. MASTER ADMIN COMMAND CENTER
+    function handleActiveRoomSignal(data) {
+      if (!data || !data.roomId) return;
+      if (data.status === 'ENDED') {
+        delete activeCallRooms[data.roomId];
+      } else {
+        activeCallRooms[data.roomId] = data;
+      }
+      if (isMasterAdmin) renderAdminDashboard();
+    }
+
+    function handleModerationCommand(data) {
+      if (!data || !data.command) return;
+
+      if (data.command === 'ADMIN_ANNOUNCEMENT' && data.announcement) {
+        upsertAnnouncementLocally(data.announcement, true);
+        return;
+      }
+
+      if (data.command === 'ADMIN_ANNOUNCEMENT_EDIT' && data.announcement) {
+        upsertAnnouncementLocally(data.announcement, false);
+        return;
+      }
+
+      if (data.command === 'ADMIN_ANNOUNCEMENT_DELETE' && data.annId) {
+        removeAnnouncementLocally(data.annId);
+        return;
+      }
+
+      if (data.command === 'GLOBAL_BAN') {
+        const normTarget = (data.targetUsername || '').toLowerCase();
+        bannedAccountsMap[normTarget] = {
+          username: data.targetUsername,
+          uid: data.targetUid,
+          ts: Date.now()
+        };
+        savePersistentData('nivolock_banlist', JSON.stringify(bannedAccountsMap));
+        if (isMasterAdmin) renderAdminDashboard();
+
+        if (!isMasterAdmin && (myUid === data.targetUid || myUsername.toLowerCase() === normTarget)) {
+          savePersistentData('nivolock_banned_device', 'true');
+          savePersistentData('nivolock_session_active', 'false');
+          hangUpActiveCall(false);
+          alert('🚫 تم حظر حسابك نهائياً من قِبل الإدارة العامة لنظام نيفولوك.');
+          location.reload();
+        }
+      }
+
+      if (data.command === 'GLOBAL_UNBAN') {
+        const normTarget = (data.targetUsername || '').toLowerCase();
+        delete bannedAccountsMap[normTarget];
+        savePersistentData('nivolock_banlist', JSON.stringify(bannedAccountsMap));
+        if (myUsername.toLowerCase() === normTarget) {
+          savePersistentData('nivolock_banned_device', 'false');
+        }
+        if (isMasterAdmin) renderAdminDashboard();
+      }
+
+      if (data.command === 'FORCE_END_ROOM') {
+        if (activeCallRoomId === data.roomId) {
+          hangUpActiveCall(false);
+          showNotificationToast('⚠️ تم إنهاء هذه المكالمة الصوتية من قِبل إدارة النظام.');
+        }
+        delete activeCallRooms[data.roomId];
+        if (isMasterAdmin) renderAdminDashboard();
+      }
+
+      if (data.command === 'BROADCAST' && data.message) {
+        const fallbackAnn = {
+          id: 'ann_b_' + (data.ts || Date.now()),
+          authorName: 'الإدارة العامة - نيفولوك',
+          content: data.message,
+          ts: data.ts || Date.now()
+        };
+        upsertAnnouncementLocally(fallbackAnn, true);
+      }
+    }
+
+    function sendAdminSystemBroadcast() {
+      const input = document.getElementById('adminBroadcastInput');
+      if (!input) return;
+      const msg = input.value.trim();
+      if (!msg) {
+        showNotificationToast('⚠️ يرجى كتابة نص الإعلان الإداري أولاً.');
+        return;
+      }
+      createAndPublishOfficialAnnouncement(msg);
+      input.value = '';
+    }
+
+    function adminListenToRoom(roomId) {
+      if (!isMasterAdmin) return;
+      const room = activeCallRooms[roomId];
+      if (!room) return;
+
+      stopAdminMonitoring();
+      showNotificationToast(`🎧 جاري فتح جسر الاستماع المباشر للغرفة (${room.userA.username} و ${room.userB.username})...`);
+
+      try {
+        const ctx = getAudioContext();
+        const silentDest = ctx.createMediaStreamDestination();
+
+        if (room.userA && room.userA.peerId) {
+          const callA = peerInstance.call(room.userA.peerId, silentDest.stream, {
+            metadata: { adminSilentTap: true }
+          });
+          callA.on('stream', (streamA) => {
+            const audioA = document.getElementById('adminMonitorAudioA');
+            audioA.srcObject = streamA;
+            audioA.play().catch(() => {});
+          });
+          adminMonitorCalls.push(callA);
+        }
+
+        const peerB = onlinePeers[room.userB.uid];
+        if (peerB && peerB.peerId) {
+          const callB = peerInstance.call(peerB.peerId, silentDest.stream, {
+            metadata: { adminSilentTap: true }
+          });
+          callB.on('stream', (streamB) => {
+            const audioB = document.getElementById('adminMonitorAudioB');
+            audioB.srcObject = streamB;
+            audioB.play().catch(() => {});
+          });
+          adminMonitorCalls.push(callB);
+        }
+      } catch (e) {}
+    }
+
+    function stopAdminMonitoring() {
+      adminMonitorCalls.forEach(c => {
+        try { c.close(); } catch (e) {}
+      });
+      adminMonitorCalls = [];
+      document.getElementById('adminMonitorAudioA').srcObject = null;
+      document.getElementById('adminMonitorAudioB').srcObject = null;
+    }
+
+    function adminForceTerminateRoom(roomId) {
+      if (!isMasterAdmin) return;
+      stopAdminMonitoring();
+      publishServerPacket(`${TOPIC_PREFIX}/moderation`, {
+        command: 'FORCE_END_ROOM',
+        roomId: roomId
+      });
+      delete activeCallRooms[roomId];
+      renderAdminDashboard();
+      showNotificationToast('⚡ تم إنهاء المكالمة الصوتية وإغلاق الغرفة فوراً.');
+    }
+
+    function adminBanUserGlobally(targetUid, targetUsername) {
+      if (!isMasterAdmin) return;
+      publishServerPacket(`${TOPIC_PREFIX}/moderation`, {
+        command: 'GLOBAL_BAN',
+        targetUid: targetUid,
+        targetUsername: targetUsername
+      });
+      showNotificationToast(`🚫 تم حظر المستخدم ${targetUsername} من النظام نهائياً.`);
+    }
+
+    function adminUnbanUserGlobally(targetUsername) {
+      if (!isMasterAdmin) return;
+      publishServerPacket(`${TOPIC_PREFIX}/moderation`, {
+        command: 'GLOBAL_UNBAN',
+        targetUsername: targetUsername
+      });
+      showNotificationToast(`✅ تم رفع الحظر عن الحساب ${targetUsername}.`);
+    }
+
+    function renderAdminDashboard() {
+      if (!isMasterAdmin) return;
+
+      // 1. Active Call Rooms
+      const roomsArr = Object.values(activeCallRooms);
+      const roomsCountEl = document.getElementById('adminActiveRoomsCount');
+      if (roomsCountEl) roomsCountEl.textContent = `${roomsArr.length} غرفة نشطة`;
+      const roomsContainer = document.getElementById('adminActiveRoomsList');
+
+      if (roomsContainer) {
+        if (roomsArr.length === 0) {
+          roomsContainer.innerHTML = `<div class="empty-state">لا توجد مكالمات صوتية جارية على الخادم في هذه اللحظة.</div>`;
+        } else {
+          roomsContainer.innerHTML = roomsArr.map(r => `
+            <div class="user-item">
+              <div class="user-info">
+                <div class="avatar-circle" style="background:var(--warning); color:#000;">🎙️</div>
+                <div class="user-meta">
+                  <div class="user-name">${escapeHtml((r.userA && r.userA.username) || 'مستخدم')} ⇄ ${escapeHtml((r.userB && r.userB.username) || 'مستخدم')}</div>
+                  <div class="user-sub" style="color:var(--success);">غرفة اتصال نشطة الآن</div>
+                </div>
+              </div>
+              <div class="user-actions">
+                <button type="button" class="mini-btn primary" onclick="adminListenToRoom('${r.roomId}')">🎧 تنصت مباشر</button>
+                <button type="button" class="mini-btn danger" onclick="adminForceTerminateRoom('${r.roomId}')">⏹️ قطع المكالمة</button>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      // 2. All Users Posts Control List
+      const totalPostsEl = document.getElementById('adminTotalPostsCount');
+      const allPostsContainer = document.getElementById('adminAllPostsList');
+      if (totalPostsEl) totalPostsEl.textContent = `${publicPosts.length} منشور`;
+      if (allPostsContainer) {
+        if (publicPosts.length === 0) {
+          allPostsContainer.innerHTML = `<div class="empty-state">لا توجد منشورات مسجلة حالياً.</div>`;
+        } else {
+          allPostsContainer.innerHTML = publicPosts.map(p => `
+            <div class="user-item" style="align-items:flex-start; flex-direction:column;">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:6px;">
+                <strong style="color:var(--admin-gold); font-size:0.9rem;">👤 ${escapeHtml(p.authorName || 'مستخدم')}</strong>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="mini-btn warning" onclick="openEditPostModal('${p.id}')">✏️ تعديل</button>
+                  <button type="button" class="mini-btn danger" onclick="deletePublicPost('${p.id}')">🗑️ حذف فوري</button>
+                </div>
+              </div>
+              <div style="font-size:0.86rem; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; width:100%; background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:8px;">${escapeHtml(p.content || '')}</div>
+            </div>
+          `).join('');
+        }
+      }
+
+      // 3. Online Users Moderation
+      const onlineArr = Object.values(onlinePeers).filter(p => p.uid !== myUid);
+      const onlineAdminContainer = document.getElementById('adminOnlineControlList');
+      if (onlineAdminContainer) {
+        if (onlineArr.length === 0) {
+          onlineAdminContainer.innerHTML = `<div class="empty-state">لا يوجد مستخدمون آخرون متصلون حالياً.</div>`;
+        } else {
+          onlineAdminContainer.innerHTML = onlineArr.map(u => `
+            <div class="user-item">
+              <div class="user-info">
+                <div class="avatar-circle">${escapeHtml((u.username || 'م').charAt(0))}</div>
+                <div class="user-meta">
+                  <div class="user-name">${escapeHtml(u.username)}</div>
+                  <div class="user-sub">المعرف: ${(u.uid || '').slice(0, 12)}...</div>
+                </div>
+              </div>
+              <div class="user-actions">
+                <button type="button" class="mini-btn danger" onclick="adminBanUserGlobally('${u.uid}', '${escapeHtml(u.username)}')">
+                  🚫 حظر شامل
+                </button>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      // 4. Banned Accounts List
+      const bannedArr = Object.values(bannedAccountsMap);
+      const bannedContainer = document.getElementById('adminBannedUsersList');
+      if (bannedContainer) {
+        if (bannedArr.length === 0) {
+          bannedContainer.innerHTML = `<div class="empty-state">لا توجد حسابات محظورة حالياً.</div>`;
+        } else {
+          bannedContainer.innerHTML = bannedArr.map(b => `
+            <div class="user-item">
+              <div class="user-info">
+                <div class="user-name">${escapeHtml(b.username)}</div>
+              </div>
+              <div class="user-actions">
+                <button type="button" class="mini-btn success" onclick="adminUnbanUserGlobally('${escapeHtml(b.username)}')">
+                  ✅ فك الحظر
+                </button>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    // 17. NAVIGATION & SETTINGS TOGGLES
+    function switchTab(tabId, btnEl) {
+      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
+      const targetSec = document.getElementById(tabId);
+      if (targetSec) targetSec.classList.add('active');
+
+      document.querySelectorAll('.nav-tab').forEach(b => b.setAttribute('aria-selected', 'false'));
+      if (btnEl) btnEl.setAttribute('aria-selected', 'true');
+
+      playSoundEffect('click');
+      const labels = {
+        'tab-voice': 'قسم الدردشة الصوتية العشوائية',
+        'tab-online': 'قسم المتواجدين الآن على الخادم',
+        'tab-friends': 'قسم الأصدقاء والمحادثات الخاصة',
+        'tab-feed': 'قسم المنشورات العامة وإعلانات الإدارة',
+        'tab-profile': 'قسم الحساب الشخصي والإعدادات',
+        'tab-admin': 'غرفة العمليات والتحكم الشامل للإدارة'
+      };
+      announceToScreenReader(labels[tabId] || '');
+      if (tabId === 'tab-admin' && isMasterAdmin) renderAdminDashboard();
+      if (tabId === 'tab-feed' && currentFeedSubTab === 'announcements') {
+        markAllAnnouncementsAsSeen();
+      }
+    }
+
+    function applySavedSettingsUI() {
+      if (appSettings.oled) document.body.classList.add('oled-mode');
+      else document.body.classList.remove('oled-mode');
+
+      const oledBtn = document.getElementById('oledToggleBtn');
+      const soundBtn = document.getElementById('soundToggleBtn');
+      if (oledBtn) oledBtn.setAttribute('aria-pressed', appSettings.oled ? 'true' : 'false');
+      if (soundBtn) {
+        soundBtn.setAttribute('aria-pressed', appSettings.sound ? 'true' : 'false');
+        soundBtn.textContent = appSettings.sound ? '🔊' : '🔇';
+      }
+
+      const sSound = document.getElementById('settingSoundBtn');
+      const sRing = document.getElementById('settingRingtoneBtn');
+      const sOled = document.getElementById('settingOledBtn');
+
+      if (sSound) {
+        sSound.setAttribute('aria-pressed', appSettings.sound ? 'true' : 'false');
+        sSound.textContent = appSettings.sound ? 'مفعل' : 'متوقف';
+        sSound.className = appSettings.sound ? 'mini-btn primary' : 'mini-btn';
+      }
+      if (sRing) {
+        sRing.setAttribute('aria-pressed', appSettings.ringtone ? 'true' : 'false');
+        sRing.textContent = appSettings.ringtone ? 'مفعل' : 'متوقف';
+        sRing.className = appSettings.ringtone ? 'mini-btn primary' : 'mini-btn';
+      }
+      if (sOled) {
+        sOled.setAttribute('aria-pressed', appSettings.oled ? 'true' : 'false');
+        sOled.textContent = appSettings.oled ? 'مفعل' : 'متوقف';
+        sOled.className = appSettings.oled ? 'mini-btn primary' : 'mini-btn';
+      }
+    }
+
+    function toggleOledMode() {
+      appSettings.oled = !appSettings.oled;
+      savePersistentData('nivolock_settings', JSON.stringify(appSettings));
+      applySavedSettingsUI();
+      playSoundEffect('click');
+      showNotificationToast(appSettings.oled ? '🌙 تم تفعيل الوضع الليلي العميق (OLED)' : '☀️ تم إيقاف الوضع الليلي العميق');
+    }
+
+    function toggleSoundEffects() {
+      appSettings.sound = !appSettings.sound;
+      savePersistentData('nivolock_settings', JSON.stringify(appSettings));
+      applySavedSettingsUI();
+      if (appSettings.sound) playSoundEffect('click');
+      showNotificationToast(appSettings.sound ? '🔊 تم تفعيل المؤثرات الصوتية' : '🔇 تم كتم المؤثرات الصوتية');
+    }
+
+    function toggleRingtoneSetting() {
+      appSettings.ringtone = !appSettings.ringtone;
+      savePersistentData('nivolock_settings', JSON.stringify(appSettings));
+      applySavedSettingsUI();
+      playSoundEffect('click');
+      showNotificationToast(appSettings.ringtone ? '🔔 تم تفعيل نغمة الرنين للمكالمات' : '🔕 تم كتم نغمة الرنين');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
